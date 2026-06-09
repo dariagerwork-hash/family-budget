@@ -1,0 +1,850 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Семейный бюджет</title>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyBl53LCUl_wDo_u_0mK9sJDicAWV6cUpYY",
+      authDomain: "family-budget-11f33.firebaseapp.com",
+      projectId: "family-budget-11f33",
+      storageBucket: "family-budget-11f33.firebasestorage.app",
+      messagingSenderId: "59500673635",
+      appId: "1:59500673635:web:4caa604c55ec315dc01656"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+  </script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { sans: ['IBM Plex Sans', 'sans-serif'] }
+        }
+      }
+    }
+  </script>
+  <style>
+    * { font-family: 'IBM Plex Sans', sans-serif; -webkit-tap-highlight-color: transparent; }
+    body { background: #F8FAFC; }
+    .hide-scrollbar::-webkit-scrollbar { display: none; }
+    .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useMemo, useCallback } = React;
+
+    // ─── Данные плана ─────────────────────────────────────────────
+    const GOAL = 600000;
+    const GOAL_DATE = new Date('2026-11-10');
+
+    const CUMULATIVE_PLAN = {
+      '2026-06': 125000,
+      '2026-07': 280000,
+      '2026-08': 435000,
+      '2026-09': 590000,
+      '2026-10': 745000,
+    };
+
+    const MONTHLY_SAVINGS_PLAN = {
+      '2026-06': 125000,
+      '2026-07': 155000,
+      '2026-08': 155000,
+      '2026-09': 155000,
+      '2026-10': 155000,
+    };
+
+    const MONTHLY_INCOME_PLAN = 420000;
+
+    const SCHEDULED_INCOME = [
+      { person: 'dasha', day: 10, amount: 120000, label: 'Зарплата Даши' },
+      { person: 'sasha', day: 15, amount: 160000, label: 'Зарплата Саши' },
+      { person: 'dasha', day: 25, amount: 40000,  label: 'Аванс Даши' },
+      { person: 'sasha', day: 30, amount: 100000, label: 'Аванс Саши' },
+    ];
+
+    const SCHEDULED_BILLS = [
+      { name: 'Ипотека',         amount: 35000, day: 15, person: 'sasha' },
+      { name: 'Кредит (машина)', amount: 30000, day: 15, person: 'sasha' },
+      { name: 'Садик Миры',      amount: 5000,  day: 15, person: 'sasha' },
+      { name: 'Кружки',          amount: 10000, day: 15, person: 'sasha' },
+      { name: 'Коммуналка',      amount: 10000, day: 15, person: 'sasha' },
+      { name: 'Бензин',          amount: 15000, day: 10, person: 'dasha' },
+    ];
+
+    const ONE_TIME_EXPENSES = [
+      { name: 'Ремонт машины', amount: 15000, date: '2026-06-13', person: 'dasha' },
+      { name: 'Кроватка',      amount: 30000, date: '2026-06-30', person: 'sasha' },
+      { name: 'Страховка',     amount: 10000, date: '2026-07-10', person: 'dasha' },
+    ];
+
+    const EXPENSE_CATEGORIES = [
+      'Ипотека', 'Кредит (машина)', 'Садик', 'Кружки', 'Коммуналка',
+      'Бензин', 'Продукты', 'Ремонт', 'Страховка', 'Кроватка',
+      'Развлечения', 'Одежда', 'Прочее',
+    ];
+
+    const INCOME_CATEGORIES = ['Зарплата', 'Аванс', 'Прочее'];
+
+    // ─── Утилиты ──────────────────────────────────────────────────
+    const fmt = (n) => new Intl.NumberFormat('ru-RU').format(Math.round(n || 0));
+    const todayStr = () => new Date().toISOString().slice(0, 10);
+    const monthKey = (dateStr) => dateStr.slice(0, 7);
+    const currentMonth = () => monthKey(todayStr());
+
+    function daysUntilGoal() {
+      return Math.max(0, Math.ceil((GOAL_DATE - new Date()) / 86400000));
+    }
+
+    function ruDate(dateStr) {
+      return new Date(dateStr + 'T12:00:00').toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
+    }
+
+    function ruMonth(monthStr) {
+      return new Date(monthStr + '-01T12:00:00').toLocaleDateString('ru-RU', { month: 'long' });
+    }
+
+    // ─── Хранилище (Firebase Firestore) ──────────────────────────
+    function useTransactions() {
+      const [txs, setTxs] = useState([]);
+      const [loading, setLoading] = useState(true);
+
+      useEffect(() => {
+        const unsub = db.collection('transactions')
+          .orderBy('date', 'desc')
+          .onSnapshot(snap => {
+            setTxs(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+            setLoading(false);
+          }, err => {
+            console.error(err);
+            setLoading(false);
+          });
+        return unsub;
+      }, []);
+
+      const add = useCallback(async (tx) => {
+        await db.collection('transactions').add(tx);
+      }, []);
+
+      const remove = useCallback(async (id) => {
+        await db.collection('transactions').doc(id).delete();
+      }, []);
+
+      return { txs, add, remove, loading };
+    }
+
+    // ─── SVG-иконки ───────────────────────────────────────────────
+    const svgProps = { viewBox:'0 0 24 24', fill:'none', stroke:'currentColor', strokeWidth:'2', strokeLinecap:'round', strokeLinejoin:'round' };
+
+    const Icons = {
+      Home: () => <svg {...svgProps} className="w-5 h-5"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>,
+      List: () => <svg {...svgProps} className="w-5 h-5"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="3" cy="6" r="0.5" fill="currentColor"/><circle cx="3" cy="12" r="0.5" fill="currentColor"/><circle cx="3" cy="18" r="0.5" fill="currentColor"/></svg>,
+      Plus: () => <svg {...svgProps} className="w-6 h-6"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>,
+      Chart: () => <svg {...svgProps} className="w-5 h-5"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/><line x1="2" y1="20" x2="22" y2="20"/></svg>,
+      Cal: () => <svg {...svgProps} className="w-5 h-5"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>,
+      X: () => <svg {...svgProps} className="w-5 h-5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>,
+      Trash: () => <svg {...svgProps} className="w-4 h-4"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>,
+      Up: () => <svg {...svgProps} className="w-4 h-4"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>,
+      Down: () => <svg {...svgProps} className="w-4 h-4"><polyline points="23 18 13.5 8.5 8.5 13.5 1 6"/><polyline points="17 18 23 18 23 12"/></svg>,
+    };
+
+    // ─── Мелкие компоненты ────────────────────────────────────────
+    function Chip({ active, onClick, children, color = 'blue' }) {
+      const activeClass = color === 'blue' ? 'bg-blue-600 text-white' : color === 'purple' ? 'bg-purple-600 text-white' : 'bg-gray-800 text-white';
+      return (
+        <button onClick={onClick}
+          className={`flex-shrink-0 px-3 py-1.5 rounded-full text-sm font-medium transition-all cursor-pointer
+            ${active ? activeClass : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+          {children}
+        </button>
+      );
+    }
+
+    function PersonChip({ person }) {
+      if (person === 'sasha') return <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">Саша</span>;
+      if (person === 'dasha') return <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">Даша</span>;
+      return null;
+    }
+
+    function Card({ children, className = '' }) {
+      return <div className={`bg-white rounded-2xl border border-gray-100 shadow-sm ${className}`}>{children}</div>;
+    }
+
+    // ─── Круговой прогресс ────────────────────────────────────────
+    function Ring({ pct, size = 96, stroke = 8 }) {
+      const r = (size - stroke) / 2;
+      const circ = 2 * Math.PI * r;
+      const offset = circ - (Math.min(Math.max(pct, 0), 100) / 100) * circ;
+      return (
+        <svg width={size} height={size} style={{ flexShrink: 0 }}>
+          <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="#E2E8F0" strokeWidth={stroke}/>
+          <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="#2563EB" strokeWidth={stroke}
+            strokeDasharray={circ} strokeDashoffset={offset} strokeLinecap="round"
+            transform={`rotate(-90 ${size/2} ${size/2})`}
+            style={{ transition: 'stroke-dashoffset 0.6s ease' }}/>
+        </svg>
+      );
+    }
+
+    // ─── Дашборд ──────────────────────────────────────────────────
+    function Dashboard({ txs, onAdd }) {
+      const cm = currentMonth();
+
+      const totalSavings = useMemo(() =>
+        txs.filter(t => t.kind === 'savings').reduce((s, t) => s + t.amount, 0), [txs]);
+
+      const pct = (totalSavings / GOAL) * 100;
+      const days = daysUntilGoal();
+
+      const cmTxs = txs.filter(t => t.date.startsWith(cm));
+      const cmIncome   = cmTxs.filter(t => t.kind === 'income').reduce((s, t) => s + t.amount, 0);
+      const cmExpenses = cmTxs.filter(t => t.kind === 'expense').reduce((s, t) => s + t.amount, 0);
+      const cmSavings  = cmTxs.filter(t => t.kind === 'savings').reduce((s, t) => s + t.amount, 0);
+
+      const planSavings = MONTHLY_SAVINGS_PLAN[cm] || 155000;
+      const onTrack = cmSavings >= planSavings * 0.5 || cmSavings === 0;
+
+      const recent = useMemo(() =>
+        [...txs].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5), [txs]);
+
+      return (
+        <div className="space-y-4 pb-4">
+
+          {/* Цель */}
+          <Card className="mx-4 mt-4 p-5">
+            <div className="text-xs text-gray-400 font-medium mb-3 uppercase tracking-wide">Цель — 600 000 ₽ к 10 ноября</div>
+            <div className="flex items-center gap-4">
+              <div className="relative flex-shrink-0">
+                <Ring pct={pct} size={96} stroke={8}/>
+                <div className="absolute inset-0 flex flex-col items-center justify-center">
+                  <span className="text-base font-bold text-gray-900">{Math.round(pct)}%</span>
+                </div>
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-2xl font-bold text-gray-900 leading-tight">{fmt(totalSavings)} ₽</div>
+                <div className="text-sm text-gray-400 mt-0.5">из {fmt(GOAL)} ₽</div>
+                <div className="mt-2.5 h-2 bg-gray-100 rounded-full overflow-hidden">
+                  <div className="h-full bg-blue-500 rounded-full transition-all duration-700"
+                    style={{ width: `${Math.min(pct, 100)}%` }}/>
+                </div>
+                <div className="text-xs text-gray-400 mt-1">Ещё {fmt(Math.max(0, GOAL - totalSavings))} ₽</div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 mt-4">
+              <div className="bg-blue-50 rounded-xl p-3 text-center">
+                <div className="text-xl font-bold text-blue-700">{days}</div>
+                <div className="text-xs text-blue-500 mt-0.5">дней осталось</div>
+              </div>
+              <div className={`rounded-xl p-3 text-center ${onTrack ? 'bg-green-50' : 'bg-amber-50'}`}>
+                <div className={`flex items-center justify-center gap-1 text-sm font-semibold ${onTrack ? 'text-green-700' : 'text-amber-700'}`}>
+                  {onTrack ? <Icons.Up/> : <Icons.Down/>}
+                  {onTrack ? 'В графике' : 'Отстаём'}
+                </div>
+                <div className={`text-xs mt-0.5 ${onTrack ? 'text-green-500' : 'text-amber-500'}`}>
+                  план {fmt(planSavings)} ₽/мес
+                </div>
+              </div>
+            </div>
+          </Card>
+
+          {/* Этот месяц */}
+          <div className="mx-4">
+            <div className="text-sm font-semibold text-gray-600 mb-2">
+              {ruMonth(cm).charAt(0).toUpperCase() + ruMonth(cm).slice(1)}
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                { label: 'Доходы',    val: cmIncome,   bg: 'bg-green-50',  txt: 'text-green-700' },
+                { label: 'Расходы',   val: cmExpenses, bg: 'bg-red-50',    txt: 'text-red-700' },
+                { label: 'В копилку', val: cmSavings,  bg: 'bg-blue-50',   txt: 'text-blue-700' },
+              ].map(({ label, val, bg, txt }) => (
+                <div key={label} className={`${bg} rounded-xl p-3`}>
+                  <div className={`text-sm font-bold ${txt} leading-tight`}>{fmt(val)}</div>
+                  <div className="text-xs text-gray-500 mt-0.5">{label}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* План накоплений */}
+          <div className="mx-4">
+            <div className="text-sm font-semibold text-gray-600 mb-2">Накопления по месяцам</div>
+            <Card>
+              {Object.entries(CUMULATIVE_PLAN).map(([key, target], i, arr) => {
+                const cumActual = txs
+                  .filter(t => t.kind === 'savings' && t.date.slice(0, 7) <= key)
+                  .reduce((s, t) => s + t.amount, 0);
+                const isCurrent = key === cm;
+                const isPast = key < cm;
+                const fillPct = Math.min((cumActual / target) * 100, 100);
+                const done = cumActual >= target;
+                const fillColor = done ? '#16a34a' : isPast ? '#dc2626' : '#2563eb';
+                return (
+                  <div key={key} className={`px-4 py-3 ${i < arr.length - 1 ? 'border-b border-gray-50' : ''} ${isCurrent ? 'bg-blue-50/60' : ''}`}>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <div className={`text-sm font-medium capitalize ${isCurrent ? 'text-blue-700' : 'text-gray-700'}`}>
+                        {ruMonth(key)}
+                        {isCurrent && <span className="ml-1.5 text-xs font-normal text-blue-500">текущий</span>}
+                      </div>
+                      <div className="text-right">
+                        <span className="text-sm font-semibold text-gray-900">{fmt(target)} ₽</span>
+                        {(isPast || isCurrent) && (
+                          <span className={`ml-2 text-xs ${done ? 'text-green-600' : 'text-gray-400'}`}>
+                            факт {fmt(cumActual)}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                      <div className="h-full rounded-full transition-all duration-500"
+                        style={{ width: `${fillPct}%`, backgroundColor: fillColor }}/>
+                    </div>
+                  </div>
+                );
+              })}
+            </Card>
+          </div>
+
+          {/* Последние операции */}
+          {recent.length > 0 && (
+            <div className="mx-4">
+              <div className="text-sm font-semibold text-gray-600 mb-2">Последние операции</div>
+              <Card className="divide-y divide-gray-50">
+                {recent.map(tx => (
+                  <TxRow key={tx.id} tx={tx} onDelete={null}/>
+                ))}
+              </Card>
+            </div>
+          )}
+
+          {recent.length === 0 && (
+            <div className="mx-4">
+              <button onClick={onAdd}
+                className="w-full border-2 border-dashed border-gray-200 rounded-2xl py-8 text-center cursor-pointer hover:border-blue-300 hover:bg-blue-50 transition-colors group">
+                <div className="w-10 h-10 bg-gray-100 group-hover:bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-2 transition-colors">
+                  <Icons.Plus/>
+                </div>
+                <div className="text-sm text-gray-500">Добавьте первую операцию</div>
+              </button>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // ─── Строка транзакции ────────────────────────────────────────
+    function TxRow({ tx, onDelete }) {
+      const kindMap = {
+        income:  { sign: '+', bg: 'bg-green-100', txt: 'text-green-700', amtColor: 'text-green-600' },
+        expense: { sign: '−', bg: 'bg-red-100',   txt: 'text-red-700',   amtColor: 'text-red-600' },
+        savings: { sign: '→', bg: 'bg-blue-100',  txt: 'text-blue-700',  amtColor: 'text-blue-600' },
+      };
+      const k = kindMap[tx.kind] || kindMap.expense;
+      return (
+        <div className="flex items-center px-4 py-3 gap-3">
+          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0 ${k.bg} ${k.txt}`}>
+            {k.sign}
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="text-sm font-medium text-gray-900 truncate">{tx.category}</div>
+            <div className="flex items-center gap-1.5 mt-0.5">
+              <PersonChip person={tx.person}/>
+              <span className="text-xs text-gray-400">{ruDate(tx.date)}</span>
+              {tx.note && <span className="text-xs text-gray-400 truncate">· {tx.note}</span>}
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className={`text-sm font-semibold ${k.amtColor}`}>
+              {k.sign !== '→' ? k.sign : ''}{fmt(tx.amount)} ₽
+            </span>
+            {onDelete && (
+              <button onClick={() => onDelete(tx.id)}
+                className="p-1.5 text-gray-300 hover:text-red-400 cursor-pointer transition-colors rounded-lg hover:bg-red-50">
+                <Icons.Trash/>
+              </button>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    // ─── Список операций ──────────────────────────────────────────
+    function Transactions({ txs, onDelete }) {
+      const [filter, setFilter] = useState('all');
+
+      const FILTERS = [
+        { id: 'all',     label: 'Все' },
+        { id: 'income',  label: 'Доходы' },
+        { id: 'expense', label: 'Расходы' },
+        { id: 'savings', label: 'Копилка' },
+        { id: 'sasha',   label: 'Саша' },
+        { id: 'dasha',   label: 'Даша' },
+      ];
+
+      const filtered = useMemo(() => {
+        const list = filter === 'all' ? txs
+          : txs.filter(t => t.kind === filter || t.person === filter);
+        return [...list].sort((a, b) => b.date.localeCompare(a.date));
+      }, [txs, filter]);
+
+      const grouped = useMemo(() =>
+        filtered.reduce((acc, tx) => {
+          (acc[tx.date] = acc[tx.date] || []).push(tx);
+          return acc;
+        }, {}), [filtered]);
+
+      return (
+        <div className="pb-4">
+          <div className="px-4 pt-4 pb-2 flex gap-2 hide-scrollbar overflow-x-auto">
+            {FILTERS.map(f => (
+              <Chip key={f.id} active={filter === f.id} onClick={() => setFilter(f.id)}>{f.label}</Chip>
+            ))}
+          </div>
+
+          {Object.keys(grouped).length === 0 ? (
+            <div className="text-center py-20 text-gray-300">
+              <div className="flex justify-center mb-2"><Icons.List/></div>
+              <div className="text-sm">Операций нет</div>
+            </div>
+          ) : (
+            Object.entries(grouped).sort(([a], [b]) => b.localeCompare(a)).map(([date, items]) => (
+              <div key={date} className="mx-4 mt-4">
+                <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
+                  {new Date(date + 'T12:00:00').toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' })}
+                </div>
+                <Card className="divide-y divide-gray-50">
+                  {items.map(tx => <TxRow key={tx.id} tx={tx} onDelete={onDelete}/>)}
+                </Card>
+              </div>
+            ))
+          )}
+        </div>
+      );
+    }
+
+    // ─── Форма добавления ─────────────────────────────────────────
+    function AddModal({ onAdd, onClose }) {
+      const [kind, setKind]       = useState('expense');
+      const [person, setPerson]   = useState('dasha');
+      const [amount, setAmount]   = useState('');
+      const [category, setCategory] = useState('');
+      const [date, setDate]       = useState(todayStr());
+      const [note, setNote]       = useState('');
+
+      const cats = kind === 'income' ? INCOME_CATEGORIES : kind === 'expense' ? EXPENSE_CATEGORIES : [];
+
+      function submit(e) {
+        e.preventDefault();
+        if (!amount || +amount <= 0) return;
+        onAdd({ kind, person: kind === 'savings' ? 'sasha' : person, amount: +amount, category: category || (kind === 'savings' ? 'В копилку' : kind), date, note });
+        onClose();
+      }
+
+      const KINDS = [
+        { id: 'income',  label: 'Доход' },
+        { id: 'expense', label: 'Расход' },
+        { id: 'savings', label: 'В копилку' },
+      ];
+
+      return (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-end" onClick={e => e.target === e.currentTarget && onClose()}>
+          <div className="bg-white w-full rounded-t-3xl max-h-[92vh] overflow-y-auto">
+            <div className="sticky top-0 bg-white px-5 pt-5 pb-3 flex items-center justify-between border-b border-gray-100">
+              <h2 className="text-base font-bold text-gray-900">Новая операция</h2>
+              <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 cursor-pointer text-gray-500 transition-colors">
+                <Icons.X/>
+              </button>
+            </div>
+
+            <form onSubmit={submit} className="px-5 pt-4 pb-8 space-y-4">
+
+              {/* Тип */}
+              <div className="flex bg-gray-100 rounded-xl p-1">
+                {KINDS.map(k => (
+                  <button type="button" key={k.id}
+                    onClick={() => { setKind(k.id); setCategory(''); }}
+                    className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all cursor-pointer
+                      ${kind === k.id ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500'}`}>
+                    {k.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Участник */}
+              {kind !== 'savings' && (
+                <div>
+                  <label className="text-xs font-medium text-gray-500 mb-1.5 block">Участник</label>
+                  <div className="flex gap-2">
+                    {[{ id: 'dasha', label: 'Даша', border: 'border-purple-400 bg-purple-50 text-purple-700', inactive: 'border-gray-200 text-gray-600' },
+                      { id: 'sasha', label: 'Саша', border: 'border-blue-400 bg-blue-50 text-blue-700', inactive: 'border-gray-200 text-gray-600' }
+                    ].map(p => (
+                      <button type="button" key={p.id} onClick={() => setPerson(p.id)}
+                        className={`flex-1 py-2.5 rounded-xl text-sm font-semibold border-2 transition-all cursor-pointer
+                          ${person === p.id ? p.border : p.inactive}`}>
+                        {p.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Сумма */}
+              <div>
+                <label className="text-xs font-medium text-gray-500 mb-1.5 block">Сумма</label>
+                <div className="relative">
+                  <input type="number" value={amount} onChange={e => setAmount(e.target.value)}
+                    inputMode="numeric" placeholder="0" min="1" required
+                    className="w-full text-2xl font-bold text-gray-900 border-2 border-gray-200 rounded-xl px-4 py-3 pr-10 focus:outline-none focus:border-blue-500 transition-colors"/>
+                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xl font-medium text-gray-400">₽</span>
+                </div>
+              </div>
+
+              {/* Категория */}
+              {cats.length > 0 && (
+                <div>
+                  <label className="text-xs font-medium text-gray-500 mb-1.5 block">Категория</label>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {cats.map(c => (
+                      <button type="button" key={c} onClick={() => setCategory(c)}
+                        className={`py-2 px-1 rounded-xl text-xs font-medium border-2 transition-all cursor-pointer
+                          ${category === c ? 'border-blue-400 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600 hover:border-gray-300'}`}>
+                        {c}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Дата */}
+              <div>
+                <label className="text-xs font-medium text-gray-500 mb-1.5 block">Дата</label>
+                <input type="date" value={date} onChange={e => setDate(e.target.value)}
+                  className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 text-gray-900 focus:outline-none focus:border-blue-500 transition-colors text-sm"/>
+              </div>
+
+              {/* Комментарий */}
+              <div>
+                <label className="text-xs font-medium text-gray-500 mb-1.5 block">Комментарий</label>
+                <input type="text" value={note} onChange={e => setNote(e.target.value)}
+                  placeholder="Необязательно"
+                  className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-900 focus:outline-none focus:border-blue-500 transition-colors"/>
+              </div>
+
+              <button type="submit"
+                className="w-full bg-blue-600 text-white py-4 rounded-xl text-base font-semibold hover:bg-blue-700 active:bg-blue-800 transition-colors cursor-pointer">
+                Сохранить
+              </button>
+            </form>
+          </div>
+        </div>
+      );
+    }
+
+    // ─── План vs Факт ─────────────────────────────────────────────
+    function Plan({ txs }) {
+      const months = Object.keys(CUMULATIVE_PLAN);
+      const [sel, setSel] = useState(currentMonth());
+
+      const cmTxs = txs.filter(t => t.date.startsWith(sel));
+      const actual = {
+        income:  cmTxs.filter(t => t.kind === 'income').reduce((s, t) => s + t.amount, 0),
+        expense: cmTxs.filter(t => t.kind === 'expense').reduce((s, t) => s + t.amount, 0),
+        savings: cmTxs.filter(t => t.kind === 'savings').reduce((s, t) => s + t.amount, 0),
+      };
+
+      const planSavings = MONTHLY_SAVINGS_PLAN[sel] || 155000;
+      const planExpenses = MONTHLY_INCOME_PLAN - planSavings;
+
+      const rows = [
+        { label: 'Доходы',    plan: MONTHLY_INCOME_PLAN, actual: actual.income,  more: true },
+        { label: 'Расходы',   plan: planExpenses,        actual: actual.expense, more: false },
+        { label: 'В копилку', plan: planSavings,          actual: actual.savings, more: true },
+      ];
+
+      const cumPlan   = CUMULATIVE_PLAN[sel] || 0;
+      const cumActual = txs
+        .filter(t => t.kind === 'savings' && t.date.slice(0, 7) <= sel)
+        .reduce((s, t) => s + t.amount, 0);
+      const ahead = cumActual - cumPlan;
+
+      // По участникам
+      const persons = ['sasha', 'dasha'].map(p => {
+        const ptx = cmTxs.filter(t => t.person === p);
+        return {
+          person: p,
+          income:  ptx.filter(t => t.kind === 'income').reduce((s, t) => s + t.amount, 0),
+          expense: ptx.filter(t => t.kind === 'expense').reduce((s, t) => s + t.amount, 0),
+          savings: ptx.filter(t => t.kind === 'savings').reduce((s, t) => s + t.amount, 0),
+        };
+      });
+
+      return (
+        <div className="pb-4">
+          {/* Выбор месяца */}
+          <div className="px-4 pt-4 pb-2 flex gap-2 hide-scrollbar overflow-x-auto">
+            {months.map(m => (
+              <Chip key={m} active={sel === m} onClick={() => setSel(m)}>
+                {ruMonth(m)}
+              </Chip>
+            ))}
+          </div>
+
+          {/* Таблица план/факт */}
+          <div className="mx-4 mt-3">
+            <div className="text-sm font-semibold text-gray-600 mb-2">
+              {ruMonth(sel).charAt(0).toUpperCase() + ruMonth(sel).slice(1)} — план vs факт
+            </div>
+            <Card>
+              <div className="grid grid-cols-3 px-4 py-2 bg-gray-50 rounded-t-2xl text-xs font-semibold text-gray-400 uppercase tracking-wide">
+                <div>Статья</div>
+                <div className="text-right">План</div>
+                <div className="text-right">Факт</div>
+              </div>
+              {rows.map(({ label, plan, actual: act, more }, i) => {
+                const diff = act - plan;
+                const good = more ? diff >= 0 : diff <= 0;
+                const fillPct = plan > 0 ? Math.min((act / plan) * 100, 100) : 0;
+                return (
+                  <div key={label} className={`px-4 py-3 ${i < rows.length - 1 ? 'border-b border-gray-50' : ''}`}>
+                    <div className="grid grid-cols-3 mb-1.5">
+                      <div className="text-sm text-gray-700">{label}</div>
+                      <div className="text-sm text-right text-gray-400">{fmt(plan)}</div>
+                      <div className={`text-sm font-semibold text-right ${act === 0 ? 'text-gray-300' : good ? 'text-green-600' : 'text-red-500'}`}>
+                        {fmt(act)}
+                      </div>
+                    </div>
+                    <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                      <div className="h-full rounded-full transition-all duration-500"
+                        style={{ width: `${fillPct}%`, backgroundColor: act === 0 ? '#CBD5E1' : good ? '#16a34a' : '#dc2626' }}/>
+                    </div>
+                    {act > 0 && (
+                      <div className={`text-xs mt-1 ${good ? 'text-green-600' : 'text-red-500'}`}>
+                        {good ? '▲' : '▼'} {fmt(Math.abs(diff))} ₽ {good ? (more ? 'больше плана' : 'меньше плана') : (more ? 'меньше плана' : 'больше плана')}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </Card>
+          </div>
+
+          {/* Нарастающий итог */}
+          <div className="mx-4 mt-4">
+            <div className="text-sm font-semibold text-gray-600 mb-2">Накопления нарастающим итогом</div>
+            <Card className="p-4">
+              <div className="flex justify-between text-sm mb-2">
+                <span className="text-gray-500">По плану: <span className="font-semibold text-gray-900">{fmt(cumPlan)} ₽</span></span>
+                <span className="text-gray-500">Факт: <span className={`font-semibold ${cumActual >= cumPlan ? 'text-green-600' : 'text-amber-600'}`}>{fmt(cumActual)} ₽</span></span>
+              </div>
+              <div className="h-3 bg-gray-100 rounded-full overflow-hidden relative">
+                <div className="absolute h-full bg-gray-200 rounded-full"
+                  style={{ width: `${Math.min((cumPlan / GOAL) * 100, 100)}%` }}/>
+                <div className="absolute h-full bg-blue-500 rounded-full transition-all duration-700"
+                  style={{ width: `${Math.min((cumActual / GOAL) * 100, 100)}%` }}/>
+              </div>
+              <div className="flex justify-between text-xs text-gray-400 mt-1">
+                <span>0</span>
+                <span>{fmt(GOAL)} ₽</span>
+              </div>
+              {cumPlan > 0 && (
+                <div className={`mt-2 text-sm font-medium ${ahead >= 0 ? 'text-green-600' : 'text-amber-600'}`}>
+                  {ahead >= 0 ? `Опережаем план на ${fmt(ahead)} ₽` : `Отстаём от плана на ${fmt(-ahead)} ₽`}
+                </div>
+              )}
+            </Card>
+          </div>
+
+          {/* По участникам */}
+          <div className="mx-4 mt-4">
+            <div className="text-sm font-semibold text-gray-600 mb-2">По участникам</div>
+            <div className="grid grid-cols-2 gap-3">
+              {persons.map(({ person, income, expense, savings }) => (
+                <Card key={person} className={`p-4 border-2 ${person === 'sasha' ? 'border-blue-100' : 'border-purple-100'}`}>
+                  <div className={`text-sm font-bold mb-3 ${person === 'sasha' ? 'text-blue-700' : 'text-purple-700'}`}>
+                    {person === 'sasha' ? 'Саша' : 'Даша'}
+                  </div>
+                  {[['Доходы', income, 'text-green-600'], ['Расходы', expense, 'text-red-500'], ['Копилка', savings, 'text-blue-600']].map(([l, v, c]) => (
+                    <div key={l} className="flex justify-between text-xs py-1 border-b border-gray-50 last:border-0">
+                      <span className="text-gray-500">{l}</span>
+                      <span className={`font-semibold ${v > 0 ? c : 'text-gray-300'}`}>{fmt(v)} ₽</span>
+                    </div>
+                  ))}
+                </Card>
+              ))}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ─── Календарь ────────────────────────────────────────────────
+    function CalendarView() {
+      const now = new Date();
+      const todayIso = todayStr();
+      const events = [];
+
+      for (let d = 0; d <= 60; d++) {
+        const dt = new Date(now);
+        dt.setDate(dt.getDate() + d);
+        const iso = dt.toISOString().slice(0, 10);
+        const day = dt.getDate();
+
+        SCHEDULED_INCOME.forEach(si => {
+          if (si.day === day) events.push({ date: iso, kind: 'income', person: si.person, label: si.label, amount: si.amount });
+        });
+
+        SCHEDULED_BILLS.forEach(sb => {
+          if (sb.day === day) events.push({ date: iso, kind: 'expense', person: sb.person, label: sb.name, amount: sb.amount });
+        });
+
+        ONE_TIME_EXPENSES.forEach(oe => {
+          const oeDate = new Date(oe.date + 'T12:00:00');
+          if (oe.date === iso && oeDate >= now) {
+            events.push({ date: iso, kind: 'expense', person: oe.person, label: oe.name, amount: oe.amount, oneTime: true });
+          }
+        });
+      }
+
+      const grouped = events
+        .sort((a, b) => a.date.localeCompare(b.date))
+        .reduce((acc, e) => { (acc[e.date] = acc[e.date] || []).push(e); return acc; }, {});
+
+      const dayTotals = Object.entries(grouped).map(([date, evts]) => ({
+        date,
+        income: evts.filter(e => e.kind === 'income').reduce((s, e) => s + e.amount, 0),
+        expense: evts.filter(e => e.kind === 'expense').reduce((s, e) => s + e.amount, 0),
+      }));
+
+      return (
+        <div className="pb-4">
+          <div className="px-4 pt-4 pb-1">
+            <div className="text-sm font-semibold text-gray-600">Ближайшие события</div>
+            <div className="text-xs text-gray-400 mt-0.5">Плановые поступления и платежи на 60 дней</div>
+          </div>
+
+          {Object.entries(grouped).map(([date, evts]) => {
+            const isToday = date === todayIso;
+            const dayIncome  = evts.filter(e => e.kind === 'income').reduce((s, e) => s + e.amount, 0);
+            const dayExpense = evts.filter(e => e.kind === 'expense').reduce((s, e) => s + e.amount, 0);
+            return (
+              <div key={date} className="mx-4 mt-4">
+                <div className="flex items-center gap-2 mb-1.5">
+                  <div className={`text-xs font-semibold uppercase tracking-wide ${isToday ? 'text-blue-600' : 'text-gray-400'}`}>
+                    {isToday ? 'Сегодня — ' : ''}
+                    {new Date(date + 'T12:00:00').toLocaleDateString('ru-RU', { weekday: 'short', day: 'numeric', month: 'long' })}
+                  </div>
+                  <div className="flex gap-1 ml-auto">
+                    {dayIncome  > 0 && <span className="text-xs font-medium text-green-600">+{fmt(dayIncome)}</span>}
+                    {dayExpense > 0 && <span className="text-xs font-medium text-red-500">−{fmt(dayExpense)}</span>}
+                  </div>
+                </div>
+                <Card className="divide-y divide-gray-50">
+                  {evts.map((e, i) => (
+                    <div key={i} className="flex items-center px-4 py-3 gap-3">
+                      <div className={`w-2 h-2 rounded-full flex-shrink-0 ${e.kind === 'income' ? 'bg-green-500' : e.oneTime ? 'bg-amber-400' : 'bg-red-400'}`}/>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm text-gray-900 font-medium">{e.label}</div>
+                        <PersonChip person={e.person}/>
+                      </div>
+                      <div className={`text-sm font-semibold ${e.kind === 'income' ? 'text-green-600' : 'text-red-500'}`}>
+                        {e.kind === 'income' ? '+' : '−'}{fmt(e.amount)} ₽
+                      </div>
+                    </div>
+                  ))}
+                </Card>
+              </div>
+            );
+          })}
+        </div>
+      );
+    }
+
+    // ─── Нижняя навигация ─────────────────────────────────────────
+    function BottomNav({ tab, setTab, onAdd }) {
+      const LEFT  = [{ id: 'dashboard', label: 'Главная', Icon: Icons.Home }, { id: 'txs', label: 'Операции', Icon: Icons.List }];
+      const RIGHT = [{ id: 'plan', label: 'План', Icon: Icons.Chart }, { id: 'calendar', label: 'Календарь', Icon: Icons.Cal }];
+      const Item = ({ id, label, Icon }) => (
+        <button onClick={() => setTab(id)}
+          className={`flex-1 py-3 flex flex-col items-center gap-0.5 cursor-pointer transition-colors
+            ${tab === id ? 'text-blue-600' : 'text-gray-400 hover:text-gray-500'}`}>
+          <Icon/>
+          <span className="text-[10px] font-medium">{label}</span>
+        </button>
+      );
+      return (
+        <div className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur border-t border-gray-200 z-40">
+          <div className="flex items-center max-w-lg mx-auto">
+            {LEFT.map(t => <Item key={t.id} {...t}/>)}
+            <div className="flex-1 flex justify-center">
+              <button onClick={onAdd}
+                className="w-12 h-12 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 rounded-full flex items-center justify-center text-white shadow-lg shadow-blue-200 cursor-pointer transition-colors -mt-5">
+                <Icons.Plus/>
+              </button>
+            </div>
+            {RIGHT.map(t => <Item key={t.id} {...t}/>)}
+          </div>
+          <div style={{ height: 'env(safe-area-inset-bottom, 0px)' }}/>
+        </div>
+      );
+    }
+
+    // ─── Корень приложения ────────────────────────────────────────
+    function App() {
+      const [tab, setTab]       = useState('dashboard');
+      const [showAdd, setShowAdd] = useState(false);
+      const { txs, add, remove, loading } = useTransactions();
+
+      return (
+        <div className="min-h-screen bg-gray-50 max-w-lg mx-auto relative">
+
+          {/* Шапка */}
+          <div className="sticky top-0 z-30 bg-white/95 backdrop-blur border-b border-gray-100 px-4 py-3.5 flex items-center justify-between">
+            <div>
+              <div className="text-base font-bold text-gray-900 leading-tight">Семейный бюджет</div>
+              <div className="text-xs text-gray-400">Саша и Даша</div>
+            </div>
+            <div className="flex items-center gap-1">
+              <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-xs font-bold text-blue-700">С</div>
+              <div className="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center text-xs font-bold text-purple-700">Д</div>
+            </div>
+          </div>
+
+          {/* Загрузка */}
+          {loading && (
+            <div className="fixed inset-0 bg-white z-50 flex flex-col items-center justify-center gap-3">
+              <div className="w-10 h-10 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"/>
+              <div className="text-sm text-gray-400">Загружаем данные...</div>
+            </div>
+          )}
+
+          {/* Контент */}
+          <div className="pb-24">
+            {tab === 'dashboard' && <Dashboard txs={txs} onAdd={() => setShowAdd(true)}/>}
+            {tab === 'txs'       && <Transactions txs={txs} onDelete={remove}/>}
+            {tab === 'plan'      && <Plan txs={txs}/>}
+            {tab === 'calendar'  && <CalendarView/>}
+          </div>
+
+          <BottomNav tab={tab} setTab={setTab} onAdd={() => setShowAdd(true)}/>
+
+          {showAdd && <AddModal onAdd={add} onClose={() => setShowAdd(false)}/>}
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+  </script>
+</body>
+</html>
