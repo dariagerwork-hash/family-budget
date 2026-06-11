@@ -25,18 +25,110 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
+      future: { hoverOnlyWhenSupported: true },
       theme: {
         extend: {
-          fontFamily: { sans: ['IBM Plex Sans', 'sans-serif'] }
+          fontFamily: { sans: ['IBM Plex Sans', 'sans-serif'] },
+          colors: {
+            // Тёплый зелёный (лист, олива) — основной акцент
+            blue: {
+              50:  '#F5F8EE',
+              100: '#E9F0DA',
+              200: '#D2E1B5',
+              300: '#B4CD8B',
+              400: '#93B660',
+              500: '#76A03E',
+              600: '#5F8C2F',
+              700: '#4B7026',
+              800: '#3C591F',
+              900: '#314A1B',
+            },
+            // Тёплый красный (терракота) — расходы
+            red: {
+              50:  '#FBF1EE',
+              100: '#F7E0D9',
+              200: '#EFC2B4',
+              300: '#E59D87',
+              400: '#DC7A5E',
+              500: '#D05A3C',
+              600: '#B94A2F',
+              700: '#963C27',
+              800: '#763020',
+              900: '#5F281C',
+            },
+            // Свежий тёплый зелёный — доходы
+            green: {
+              50:  '#F2F8EC',
+              100: '#E2EFD4',
+              200: '#C4DFA9',
+              300: '#A3CC7C',
+              400: '#7FB554',
+              500: '#609E3A',
+              600: '#4C882C',
+              700: '#3D6C24',
+              800: '#32561E',
+              900: '#2A471B',
+            },
+            // Тёплая слива — Даша
+            purple: {
+              50:  '#F8F2F7',
+              100: '#F0E2EE',
+              200: '#DFC2DB',
+              300: '#C99BC2',
+              400: '#B173A6',
+              500: '#985689',
+              600: '#7F4570',
+              700: '#663758',
+              800: '#522C46',
+              900: '#44253A',
+            },
+          }
         }
       }
     }
   </script>
   <style>
     * { font-family: 'IBM Plex Sans', sans-serif; -webkit-tap-highlight-color: transparent; }
-    body { background: #F8FAFC; }
+    body { background: #F8F9F3; overscroll-behavior-y: contain; }
+    button, a, input, select { touch-action: manipulation; }
+    button:focus-visible, input:focus-visible {
+      outline: 2px solid #5F8C2F;
+      outline-offset: 2px;
+      border-radius: 8px;
+    }
     .hide-scrollbar::-webkit-scrollbar { display: none; }
     .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+    /* Нажатие: кнопка физически отвечает */
+    .pressable {
+      transition: transform 160ms cubic-bezier(0.23, 1, 0.32, 1);
+    }
+    .pressable:active {
+      transform: scale(0.97);
+    }
+
+    /* Шторка: приезжает снизу с iOS-кривой, затемнение фейдится */
+    .sheet-overlay {
+      transition: background-color 250ms cubic-bezier(0.23, 1, 0.32, 1);
+    }
+    .sheet-panel {
+      transform: translateY(0);
+      transition: transform 350ms cubic-bezier(0.32, 0.72, 0, 1);
+    }
+    @starting-style {
+      .sheet-overlay { background-color: rgba(0, 0, 0, 0); }
+      .sheet-panel { transform: translateY(100%); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .sheet-panel { transition: none; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        transition-duration: 0.01ms !important;
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+      }
+    }
   </style>
 </head>
 <body>
@@ -50,21 +142,22 @@
     const GOAL_DATE = new Date('2026-11-10');
 
     const CUMULATIVE_PLAN = {
-      '2026-06': 125000,
-      '2026-07': 280000,
+      '2026-06': 115000,
+      '2026-07': 275000,
       '2026-08': 435000,
-      '2026-09': 590000,
-      '2026-10': 745000,
+      '2026-09': 595000,
+      '2026-10': 755000,
     };
 
     const MONTHLY_SAVINGS_PLAN = {
-      '2026-06': 125000,
-      '2026-07': 155000,
-      '2026-08': 155000,
-      '2026-09': 155000,
-      '2026-10': 155000,
+      '2026-06': 115000,
+      '2026-07': 160000,
+      '2026-08': 160000,
+      '2026-09': 160000,
+      '2026-10': 160000,
     };
 
+    const INCOME_PLAN_BY_MONTH = { '2026-06': 415000 };
     const MONTHLY_INCOME_PLAN = 420000;
 
     const SCHEDULED_INCOME = [
@@ -77,25 +170,53 @@
     const SCHEDULED_BILLS = [
       { name: 'Ипотека',         amount: 35000, day: 15, person: 'sasha' },
       { name: 'Кредит (машина)', amount: 30000, day: 15, person: 'sasha' },
-      { name: 'Садик Миры',      amount: 5000,  day: 15, person: 'sasha' },
+      { name: 'Садик Миры',      amount: 5000,  day: 10, person: 'dasha' },
       { name: 'Кружки',          amount: 10000, day: 15, person: 'sasha' },
       { name: 'Коммуналка',      amount: 10000, day: 15, person: 'sasha' },
       { name: 'Бензин',          amount: 15000, day: 10, person: 'dasha' },
     ];
 
     const ONE_TIME_EXPENSES = [
-      { name: 'Ремонт машины', amount: 15000, date: '2026-06-13', person: 'dasha' },
-      { name: 'Кроватка',      amount: 30000, date: '2026-06-30', person: 'sasha' },
-      { name: 'Страховка',     amount: 10000, date: '2026-07-10', person: 'dasha' },
+      { name: 'Долг',                  amount: 10000, date: '2026-06-10', person: 'dasha' },
+      { name: 'Обслуживание машины',   amount: 15000, date: '2026-06-13', person: 'dasha' },
+      { name: 'Кроватка',              amount: 30000, date: '2026-06-30', person: 'sasha' },
+      { name: 'Подарки (2 ДР)',        amount: 10000, date: '2026-07-06', person: 'dasha' },
     ];
 
     const EXPENSE_CATEGORIES = [
       'Ипотека', 'Кредит (машина)', 'Садик', 'Кружки', 'Коммуналка',
-      'Бензин', 'Продукты', 'Ремонт', 'Страховка', 'Кроватка',
-      'Развлечения', 'Одежда', 'Прочее',
+      'Бензин', 'Супермаркеты', 'Обед', 'Кафе', 'Кофе', 'Здоровье',
+      'Обслуживание машины', 'Детские товары', 'Коты',
+      'Развлечения', 'Одежда', 'Подарки', 'Прочее',
     ];
 
     const INCOME_CATEGORIES = ['Зарплата', 'Аванс', 'Прочее'];
+
+    // Цвета категорий
+    const CATEGORY_COLORS = {
+      'Ипотека':              '#46B8DE',
+      'Кредит (машина)':      '#5AC8FA',
+      'Садик':                '#F48FB1',
+      'Кружки':               '#9B6DE8',
+      'Коммуналка':           '#7B8FF5',
+      'Бензин':               '#FFB02E',
+      'Супермаркеты':         '#F4764F',
+      'Обед':                 '#FF9447',
+      'Кафе':                 '#F2A33C',
+      'Кофе':                 '#A9745B',
+      'Здоровье':             '#E8554D',
+      'Обслуживание машины':  '#D98E32',
+      'Детские товары':       '#C760E8',
+      'Коты':                 '#B07BE8',
+      'Развлечения':          '#FF6B81',
+      'Одежда':               '#4DA8E2',
+      'Подарки':              '#F06292',
+      'Прочее':               '#8FA3B5',
+      'Зарплата':             '#7FA650',
+      'Аванс':                '#9CBE6E',
+      'В копилку':            '#5F8C2F',
+    };
+    const catColor = (c) => CATEGORY_COLORS[c] || '#8FA3B5';
 
     // ─── Утилиты ──────────────────────────────────────────────────
     const fmt = (n) => new Intl.NumberFormat('ru-RU').format(Math.round(n || 0));
@@ -137,11 +258,46 @@
         await db.collection('transactions').add(tx);
       }, []);
 
+      const update = useCallback(async (id, tx) => {
+        await db.collection('transactions').doc(id).set(tx);
+      }, []);
+
       const remove = useCallback(async (id) => {
         await db.collection('transactions').doc(id).delete();
       }, []);
 
-      return { txs, add, remove, loading };
+      const renameCategory = useCallback(async (oldCat, newCat) => {
+        const snap = await db.collection('transactions').where('category', '==', oldCat).get();
+        const batch = db.batch();
+        snap.docs.forEach(d => batch.update(d.ref, { category: newCat }));
+        await batch.commit();
+      }, []);
+
+      return { txs, add, update, remove, renameCategory, loading };
+    }
+
+    // ─── Плановые траты (пользовательские, в календарь) ──────────
+    function usePlanned() {
+      const [planned, setPlanned] = useState([]);
+
+      useEffect(() => {
+        const unsub = db.collection('planned')
+          .orderBy('date')
+          .onSnapshot(snap => {
+            setPlanned(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+          }, err => console.error(err));
+        return unsub;
+      }, []);
+
+      const add = useCallback(async (p) => {
+        await db.collection('planned').add(p);
+      }, []);
+
+      const remove = useCallback(async (id) => {
+        await db.collection('planned').doc(id).delete();
+      }, []);
+
+      return { planned, add, remove };
     }
 
     // ─── SVG-иконки ───────────────────────────────────────────────
@@ -164,7 +320,7 @@
       const activeClass = color === 'blue' ? 'bg-blue-600 text-white' : color === 'purple' ? 'bg-purple-600 text-white' : 'bg-gray-800 text-white';
       return (
         <button onClick={onClick}
-          className={`flex-shrink-0 px-3 py-1.5 rounded-full text-sm font-medium transition-all cursor-pointer
+          className={`pressable flex-shrink-0 px-4 py-2 min-h-[36px] rounded-full text-sm font-medium cursor-pointer
             ${active ? activeClass : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
           {children}
         </button>
@@ -178,7 +334,8 @@
     }
 
     function Card({ children, className = '' }) {
-      return <div className={`bg-white rounded-2xl border border-gray-100 shadow-sm ${className}`}>{children}</div>;
+      return <div className={`bg-white rounded-2xl border border-gray-100 ${className}`}
+        style={{ boxShadow: '0 1px 3px rgba(15,23,42,0.04), 0 4px 16px rgba(15,23,42,0.05)' }}>{children}</div>;
     }
 
     // ─── Круговой прогресс ────────────────────────────────────────
@@ -188,8 +345,8 @@
       const offset = circ - (Math.min(Math.max(pct, 0), 100) / 100) * circ;
       return (
         <svg width={size} height={size} style={{ flexShrink: 0 }}>
-          <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="#E2E8F0" strokeWidth={stroke}/>
-          <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="#2563EB" strokeWidth={stroke}
+          <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="#E8EBDF" strokeWidth={stroke}/>
+          <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="#5F8C2F" strokeWidth={stroke}
             strokeDasharray={circ} strokeDashoffset={offset} strokeLinecap="round"
             transform={`rotate(-90 ${size/2} ${size/2})`}
             style={{ transition: 'stroke-dashoffset 0.6s ease' }}/>
@@ -212,7 +369,7 @@
       const cmExpenses = cmTxs.filter(t => t.kind === 'expense').reduce((s, t) => s + t.amount, 0);
       const cmSavings  = cmTxs.filter(t => t.kind === 'savings').reduce((s, t) => s + t.amount, 0);
 
-      const planSavings = MONTHLY_SAVINGS_PLAN[cm] || 155000;
+      const planSavings = MONTHLY_SAVINGS_PLAN[cm] || 160000;
       const onTrack = cmSavings >= planSavings * 0.5 || cmSavings === 0;
 
       const recent = useMemo(() =>
@@ -234,11 +391,7 @@
               <div className="flex-1 min-w-0">
                 <div className="text-2xl font-bold text-gray-900 leading-tight">{fmt(totalSavings)} ₽</div>
                 <div className="text-sm text-gray-400 mt-0.5">из {fmt(GOAL)} ₽</div>
-                <div className="mt-2.5 h-2 bg-gray-100 rounded-full overflow-hidden">
-                  <div className="h-full bg-blue-500 rounded-full transition-all duration-700"
-                    style={{ width: `${Math.min(pct, 100)}%` }}/>
-                </div>
-                <div className="text-xs text-gray-400 mt-1">Ещё {fmt(Math.max(0, GOAL - totalSavings))} ₽</div>
+                <div className="text-sm text-gray-500 mt-2">Ещё {fmt(Math.max(0, GOAL - totalSavings))} ₽ · до 10 ноября</div>
               </div>
             </div>
 
@@ -290,7 +443,7 @@
                 const isPast = key < cm;
                 const fillPct = Math.min((cumActual / target) * 100, 100);
                 const done = cumActual >= target;
-                const fillColor = done ? '#16a34a' : isPast ? '#dc2626' : '#2563eb';
+                const fillColor = done ? '#4B7026' : isPast ? '#B94A2F' : '#93B660';
                 return (
                   <div key={key} className={`px-4 py-3 ${i < arr.length - 1 ? 'border-b border-gray-50' : ''} ${isCurrent ? 'bg-blue-50/60' : ''}`}>
                     <div className="flex items-center justify-between mb-1.5">
@@ -308,7 +461,7 @@
                       </div>
                     </div>
                     <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                      <div className="h-full rounded-full transition-all duration-500"
+                      <div className="h-full rounded-full transition-[width] duration-500"
                         style={{ width: `${fillPct}%`, backgroundColor: fillColor }}/>
                     </div>
                   </div>
@@ -345,7 +498,7 @@
     }
 
     // ─── Строка транзакции ────────────────────────────────────────
-    function TxRow({ tx, onDelete }) {
+    function TxRow({ tx, onDelete, onEdit }) {
       const kindMap = {
         income:  { sign: '+', bg: 'bg-green-100', txt: 'text-green-700', amtColor: 'text-green-600' },
         expense: { sign: '−', bg: 'bg-red-100',   txt: 'text-red-700',   amtColor: 'text-red-600' },
@@ -358,7 +511,10 @@
             {k.sign}
           </div>
           <div className="flex-1 min-w-0">
-            <div className="text-sm font-medium text-gray-900 truncate">{tx.category}</div>
+            <div className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: catColor(tx.category) }}/>
+              <span className="text-sm font-medium text-gray-900 truncate">{tx.category}</span>
+            </div>
             <div className="flex items-center gap-1.5 mt-0.5">
               <PersonChip person={tx.person}/>
               <span className="text-xs text-gray-400">{ruDate(tx.date)}</span>
@@ -369,9 +525,18 @@
             <span className={`text-sm font-semibold ${k.amtColor}`}>
               {k.sign !== '→' ? k.sign : ''}{fmt(tx.amount)} ₽
             </span>
+            {onEdit && (
+              <button onClick={() => onEdit(tx)} aria-label="Изменить операцию"
+                className="w-10 h-10 flex items-center justify-center text-gray-300 hover:text-blue-500 cursor-pointer transition-colors rounded-lg hover:bg-blue-50">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                </svg>
+              </button>
+            )}
             {onDelete && (
-              <button onClick={() => onDelete(tx.id)}
-                className="p-1.5 text-gray-300 hover:text-red-400 cursor-pointer transition-colors rounded-lg hover:bg-red-50">
+              <button onClick={() => onDelete(tx.id)} aria-label="Удалить операцию"
+                className="w-10 h-10 flex items-center justify-center text-gray-300 hover:text-red-400 cursor-pointer transition-colors rounded-lg hover:bg-red-50">
                 <Icons.Trash/>
               </button>
             )}
@@ -381,8 +546,9 @@
     }
 
     // ─── Список операций ──────────────────────────────────────────
-    function Transactions({ txs, onDelete }) {
+    function Transactions({ txs, onDelete, onEdit, onRenameCategory }) {
       const [filter, setFilter] = useState('all');
+      const [showAnalytics, setShowAnalytics] = useState(false);
 
       const FILTERS = [
         { id: 'all',     label: 'Все' },
@@ -407,11 +573,25 @@
 
       return (
         <div className="pb-4">
-          <div className="px-4 pt-4 pb-2 flex gap-2 hide-scrollbar overflow-x-auto">
-            {FILTERS.map(f => (
-              <Chip key={f.id} active={filter === f.id} onClick={() => setFilter(f.id)}>{f.label}</Chip>
-            ))}
+          <div className="px-4 pt-4 pb-2 flex items-center gap-2">
+            <div className="flex-1 flex gap-2 hide-scrollbar overflow-x-auto">
+              {FILTERS.map(f => (
+                <Chip key={f.id} active={filter === f.id} onClick={() => setFilter(f.id)}>{f.label}</Chip>
+              ))}
+            </div>
+            <button onClick={() => setShowAnalytics(s => !s)}
+              aria-label={showAnalytics ? 'Скрыть аналитику' : 'Показать аналитику'}
+              className={`pressable flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center cursor-pointer
+                ${showAnalytics ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="w-5 h-5">
+                <path d="M21.21 15.89A10 10 0 1 1 8 2.83"/>
+                <path d="M22 12A10 10 0 0 0 12 2v10z"/>
+              </svg>
+            </button>
           </div>
+
+          {/* Аналитика — разворачивается по кнопке */}
+          {showAnalytics && <CategoryAnalytics allTxs={txs} onRenameCategory={onRenameCategory}/>}
 
           {Object.keys(grouped).length === 0 ? (
             <div className="text-center py-20 text-gray-300">
@@ -425,7 +605,7 @@
                   {new Date(date + 'T12:00:00').toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' })}
                 </div>
                 <Card className="divide-y divide-gray-50">
-                  {items.map(tx => <TxRow key={tx.id} tx={tx} onDelete={onDelete}/>)}
+                  {items.map(tx => <TxRow key={tx.id} tx={tx} onDelete={onDelete} onEdit={onEdit}/>)}
                 </Card>
               </div>
             ))
@@ -435,13 +615,13 @@
     }
 
     // ─── Форма добавления ─────────────────────────────────────────
-    function AddModal({ onAdd, onClose }) {
-      const [kind, setKind]       = useState('expense');
-      const [person, setPerson]   = useState('dasha');
-      const [amount, setAmount]   = useState('');
-      const [category, setCategory] = useState('');
-      const [date, setDate]       = useState(todayStr());
-      const [note, setNote]       = useState('');
+    function AddModal({ onAdd, onClose, editTx }) {
+      const [kind, setKind]       = useState(editTx ? editTx.kind : 'expense');
+      const [person, setPerson]   = useState(editTx ? editTx.person : 'dasha');
+      const [amount, setAmount]   = useState(editTx ? String(editTx.amount) : '');
+      const [category, setCategory] = useState(editTx ? editTx.category : '');
+      const [date, setDate]       = useState(editTx ? editTx.date : todayStr());
+      const [note, setNote]       = useState(editTx ? (editTx.note || '') : '');
 
       const cats = kind === 'income' ? INCOME_CATEGORIES : kind === 'expense' ? EXPENSE_CATEGORIES : [];
 
@@ -459,11 +639,11 @@
       ];
 
       return (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-end" onClick={e => e.target === e.currentTarget && onClose()}>
-          <div className="bg-white w-full rounded-t-3xl max-h-[92vh] overflow-y-auto">
+        <div className="sheet-overlay fixed inset-0 bg-black/40 z-50 flex items-end" onClick={e => e.target === e.currentTarget && onClose()}>
+          <div className="sheet-panel bg-white w-full rounded-t-3xl max-h-[92vh] overflow-y-auto">
             <div className="sticky top-0 bg-white px-5 pt-5 pb-3 flex items-center justify-between border-b border-gray-100">
-              <h2 className="text-base font-bold text-gray-900">Новая операция</h2>
-              <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 cursor-pointer text-gray-500 transition-colors">
+              <h2 className="text-base font-bold text-gray-900">{editTx ? 'Изменить операцию' : 'Новая операция'}</h2>
+              <button onClick={onClose} aria-label="Закрыть" className="w-11 h-11 flex items-center justify-center rounded-full hover:bg-gray-100 cursor-pointer text-gray-500 transition-colors">
                 <Icons.X/>
               </button>
             </div>
@@ -475,7 +655,7 @@
                 {KINDS.map(k => (
                   <button type="button" key={k.id}
                     onClick={() => { setKind(k.id); setCategory(''); }}
-                    className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all cursor-pointer
+                    className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors cursor-pointer
                       ${kind === k.id ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500'}`}>
                     {k.label}
                   </button>
@@ -491,7 +671,7 @@
                       { id: 'sasha', label: 'Саша', border: 'border-blue-400 bg-blue-50 text-blue-700', inactive: 'border-gray-200 text-gray-600' }
                     ].map(p => (
                       <button type="button" key={p.id} onClick={() => setPerson(p.id)}
-                        className={`flex-1 py-2.5 rounded-xl text-sm font-semibold border-2 transition-all cursor-pointer
+                        className={`flex-1 py-2.5 rounded-xl text-sm font-semibold border-2 transition-colors cursor-pointer
                           ${person === p.id ? p.border : p.inactive}`}>
                         {p.label}
                       </button>
@@ -518,9 +698,11 @@
                   <div className="grid grid-cols-3 gap-1.5">
                     {cats.map(c => (
                       <button type="button" key={c} onClick={() => setCategory(c)}
-                        className={`py-2 px-1 rounded-xl text-xs font-medium border-2 transition-all cursor-pointer
-                          ${category === c ? 'border-blue-400 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600 hover:border-gray-300'}`}>
-                        {c}
+                        style={category === c ? { borderColor: catColor(c), backgroundColor: catColor(c) + '18', color: catColor(c) } : {}}
+                        className={`py-2 px-1 rounded-xl text-xs font-medium border-2 transition-colors cursor-pointer flex items-center justify-center gap-1
+                          ${category === c ? '' : 'border-gray-200 text-gray-600 hover:border-gray-300'}`}>
+                        <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: catColor(c) }}/>
+                        <span className="truncate">{c}</span>
                       </button>
                     ))}
                   </div>
@@ -531,7 +713,7 @@
               <div>
                 <label className="text-xs font-medium text-gray-500 mb-1.5 block">Дата</label>
                 <input type="date" value={date} onChange={e => setDate(e.target.value)}
-                  className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 text-gray-900 focus:outline-none focus:border-blue-500 transition-colors text-sm"/>
+                  className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 text-gray-900 focus:outline-none focus:border-blue-500 transition-colors text-base"/>
               </div>
 
               {/* Комментарий */}
@@ -539,11 +721,11 @@
                 <label className="text-xs font-medium text-gray-500 mb-1.5 block">Комментарий</label>
                 <input type="text" value={note} onChange={e => setNote(e.target.value)}
                   placeholder="Необязательно"
-                  className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-900 focus:outline-none focus:border-blue-500 transition-colors"/>
+                  className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 text-base text-gray-900 focus:outline-none focus:border-blue-500 transition-colors"/>
               </div>
 
               <button type="submit"
-                className="w-full bg-blue-600 text-white py-4 rounded-xl text-base font-semibold hover:bg-blue-700 active:bg-blue-800 transition-colors cursor-pointer">
+                className="pressable w-full bg-blue-600 text-white py-4 rounded-xl text-base font-semibold hover:bg-blue-700 active:bg-blue-800 cursor-pointer">
                 Сохранить
               </button>
             </form>
@@ -553,9 +735,8 @@
     }
 
     // ─── План vs Факт ─────────────────────────────────────────────
-    function Plan({ txs }) {
-      const months = Object.keys(CUMULATIVE_PLAN);
-      const [sel, setSel] = useState(currentMonth());
+    function Plan({ txs, onRenameCategory }) {
+      const sel = currentMonth();
 
       const cmTxs = txs.filter(t => t.date.startsWith(sel));
       const actual = {
@@ -564,11 +745,12 @@
         savings: cmTxs.filter(t => t.kind === 'savings').reduce((s, t) => s + t.amount, 0),
       };
 
-      const planSavings = MONTHLY_SAVINGS_PLAN[sel] || 155000;
-      const planExpenses = MONTHLY_INCOME_PLAN - planSavings;
+      const planSavings = MONTHLY_SAVINGS_PLAN[sel] || 160000;
+      const planIncome = INCOME_PLAN_BY_MONTH[sel] || MONTHLY_INCOME_PLAN;
+      const planExpenses = planIncome - planSavings;
 
       const rows = [
-        { label: 'Доходы',    plan: MONTHLY_INCOME_PLAN, actual: actual.income,  more: true },
+        { label: 'Доходы',    plan: planIncome, actual: actual.income,  more: true },
         { label: 'Расходы',   plan: planExpenses,        actual: actual.expense, more: false },
         { label: 'В копилку', plan: planSavings,          actual: actual.savings, more: true },
       ];
@@ -592,17 +774,8 @@
 
       return (
         <div className="pb-4">
-          {/* Выбор месяца */}
-          <div className="px-4 pt-4 pb-2 flex gap-2 hide-scrollbar overflow-x-auto">
-            {months.map(m => (
-              <Chip key={m} active={sel === m} onClick={() => setSel(m)}>
-                {ruMonth(m)}
-              </Chip>
-            ))}
-          </div>
-
           {/* Таблица план/факт */}
-          <div className="mx-4 mt-3">
+          <div className="mx-4 mt-4">
             <div className="text-sm font-semibold text-gray-600 mb-2">
               {ruMonth(sel).charAt(0).toUpperCase() + ruMonth(sel).slice(1)} — план vs факт
             </div>
@@ -626,8 +799,8 @@
                       </div>
                     </div>
                     <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                      <div className="h-full rounded-full transition-all duration-500"
-                        style={{ width: `${fillPct}%`, backgroundColor: act === 0 ? '#CBD5E1' : good ? '#16a34a' : '#dc2626' }}/>
+                      <div className="h-full rounded-full transition-[width] duration-500"
+                        style={{ width: `${fillPct}%`, backgroundColor: act === 0 ? '#D5D9CC' : good ? '#5F8C2F' : '#B94A2F' }}/>
                     </div>
                     {act > 0 && (
                       <div className={`text-xs mt-1 ${good ? 'text-green-600' : 'text-red-500'}`}>
@@ -651,7 +824,7 @@
               <div className="h-3 bg-gray-100 rounded-full overflow-hidden relative">
                 <div className="absolute h-full bg-gray-200 rounded-full"
                   style={{ width: `${Math.min((cumPlan / GOAL) * 100, 100)}%` }}/>
-                <div className="absolute h-full bg-blue-500 rounded-full transition-all duration-700"
+                <div className="absolute h-full bg-blue-500 rounded-full transition-[width] duration-700"
                   style={{ width: `${Math.min((cumActual / GOAL) * 100, 100)}%` }}/>
               </div>
               <div className="flex justify-between text-xs text-gray-400 mt-1">
@@ -689,12 +862,271 @@
       );
     }
 
+    // ─── Аналитика по категориям ──────────────────────────────────
+    function PieChart({ data, total, size = 260, stroke = 36 }) {
+      const pad = 34; // место под подписи процентов
+      const r = (size - stroke) / 2 - pad;
+      const cx = size / 2, cy = size / 2;
+      const C = 2 * Math.PI * r;
+      let offset = 0;
+      let angleAcc = -90;
+
+      const segs = data.map(({ cat, sum }) => {
+        const frac = total > 0 ? sum / total : 0;
+        const len = frac * C;
+        const midAngle = angleAcc + frac * 180; // середина сегмента в градусах
+        const seg = { cat, len, off: offset, frac, midAngle };
+        offset += len;
+        angleAcc += frac * 360;
+        return seg;
+      });
+
+      return (
+        <div className="relative flex-shrink-0 mx-auto" style={{ width: size, height: size }}>
+          <svg width={size} height={size}>
+            {total === 0 && (
+              <circle cx={cx} cy={cy} r={r} fill="none" stroke="#E2E8F0" strokeWidth={stroke}/>
+            )}
+            {segs.map(s => (
+              <circle key={s.cat} cx={cx} cy={cy} r={r} fill="none"
+                stroke={catColor(s.cat)} strokeWidth={stroke} strokeLinecap="butt"
+                strokeDasharray={`${Math.max(s.len - 2, 0)} ${C - Math.max(s.len - 2, 0)}`}
+                strokeDashoffset={-s.off}
+                transform={`rotate(-90 ${cx} ${cy})`}/>
+            ))}
+            {segs.filter(s => s.frac >= 0.04).map(s => {
+              const rad = (s.midAngle * Math.PI) / 180;
+              const lr = r + stroke / 2 + 16;
+              return (
+                <text key={s.cat + '_l'} x={cx + lr * Math.cos(rad)} y={cy + lr * Math.sin(rad)}
+                  textAnchor="middle" dominantBaseline="middle"
+                  className="fill-gray-400" style={{ fontSize: '12px', fontWeight: 600 }}>
+                  {Math.round(s.frac * 100)}%
+                </text>
+              );
+            })}
+          </svg>
+        </div>
+      );
+    }
+
+    function RenameCategoryModal({ cat, onRename, onClose }) {
+      const [newName, setNewName] = useState(cat);
+
+      function submit(e) {
+        e.preventDefault();
+        const name = newName.trim();
+        if (!name || name === cat) { onClose(); return; }
+        onRename(cat, name);
+        onClose();
+      }
+
+      return (
+        <div className="sheet-overlay fixed inset-0 bg-black/40 z-50 flex items-end" onClick={e => e.target === e.currentTarget && onClose()}>
+          <div className="sheet-panel bg-white w-full rounded-t-3xl">
+            <div className="px-5 pt-5 pb-3 flex items-center justify-between border-b border-gray-100">
+              <h2 className="text-base font-bold text-gray-900">Переименовать категорию</h2>
+              <button onClick={onClose} aria-label="Закрыть" className="w-11 h-11 flex items-center justify-center rounded-full hover:bg-gray-100 cursor-pointer text-gray-500 transition-colors">
+                <Icons.X/>
+              </button>
+            </div>
+            <form onSubmit={submit} className="px-5 pt-4 pb-8 space-y-4">
+              <div className="text-xs text-gray-400">
+                Все операции с категорией <span className="font-semibold text-gray-600">«{cat}»</span> получат новую категорию.
+              </div>
+              <input type="text" value={newName} onChange={e => setNewName(e.target.value)} required autoFocus
+                className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 text-base text-gray-900 focus:outline-none focus:border-blue-500 transition-colors"/>
+              <div>
+                <div className="text-xs font-medium text-gray-500 mb-1.5">Или выберите из списка</div>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {EXPENSE_CATEGORIES.map(c => (
+                    <button type="button" key={c} onClick={() => setNewName(c)}
+                      style={newName === c ? { borderColor: catColor(c), backgroundColor: catColor(c) + '18', color: catColor(c) } : {}}
+                      className={`py-2 px-1 rounded-xl text-xs font-medium border-2 transition-colors cursor-pointer flex items-center justify-center gap-1
+                        ${newName === c ? '' : 'border-gray-200 text-gray-600 hover:border-gray-300'}`}>
+                      <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: catColor(c) }}/>
+                      <span className="truncate">{c}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <button type="submit"
+                className="pressable w-full bg-blue-600 text-white py-4 rounded-xl text-base font-semibold hover:bg-blue-700 active:bg-blue-800 cursor-pointer">
+                Переименовать
+              </button>
+            </form>
+          </div>
+        </div>
+      );
+    }
+
+    function CategoryAnalytics({ allTxs, onRenameCategory }) {
+      const months = Object.keys(CUMULATIVE_PLAN);
+      const [sel, setSel] = useState(currentMonth());
+      const [renaming, setRenaming] = useState(null);
+
+      const expenses = useMemo(() =>
+        allTxs.filter(t => t.kind === 'expense' && t.date.startsWith(sel)), [allTxs, sel]);
+      const total = expenses.reduce((s, t) => s + t.amount, 0);
+
+      const byCat = useMemo(() => {
+        const map = {};
+        expenses.forEach(t => { map[t.category] = (map[t.category] || 0) + t.amount; });
+        return Object.entries(map)
+          .map(([cat, sum]) => ({ cat, sum, pct: total > 0 ? (sum / total) * 100 : 0 }))
+          .sort((a, b) => b.sum - a.sum);
+      }, [expenses, total]);
+
+      return (
+        <div className="mt-3">
+          {/* Фильтр по месяцам — действует только здесь */}
+          <div className="px-4 pb-3 flex gap-2 hide-scrollbar overflow-x-auto">
+            {months.map(m => (
+              <Chip key={m} active={sel === m} onClick={() => setSel(m)}>
+                {ruMonth(m)}
+              </Chip>
+            ))}
+          </div>
+
+          <Card className="mx-4 p-4">
+            {byCat.length === 0 ? (
+              <div className="text-center py-8 text-sm text-gray-300">Нет расходов за {ruMonth(sel)}</div>
+            ) : (
+              <React.Fragment>
+                {/* Сумма сверху */}
+                <div>
+                  <div className="text-2xl font-bold text-gray-900 leading-tight">{fmt(total)} ₽</div>
+                  <div className="text-sm text-gray-400">Траты</div>
+                </div>
+
+                {/* Бублик с процентами */}
+                <PieChart data={byCat} total={total}/>
+
+                {/* Легенда-пилюли */}
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {byCat.map(({ cat, sum }) => (
+                    <button key={cat} onClick={() => setRenaming(cat)}
+                      style={{ backgroundColor: catColor(cat) + '1C' }}
+                      aria-label={`Переименовать категорию ${cat}`}
+                      className="pressable flex items-center gap-1.5 pl-1.5 pr-3 py-1.5 min-h-[36px] rounded-full cursor-pointer hover:opacity-80">
+                      <span className="w-6 h-6 rounded-full flex-shrink-0" style={{ backgroundColor: catColor(cat) }}/>
+                      <span className="text-sm font-medium text-gray-700">{cat}</span>
+                      <span className="text-sm font-semibold text-gray-900">{fmt(sum)} ₽</span>
+                    </button>
+                  ))}
+                </div>
+                <div className="text-[11px] text-gray-300 mt-2">Нажмите на категорию, чтобы переименовать</div>
+              </React.Fragment>
+            )}
+          </Card>
+
+          {renaming && (
+            <RenameCategoryModal cat={renaming} onRename={onRenameCategory} onClose={() => setRenaming(null)}/>
+          )}
+        </div>
+      );
+    }
+
     // ─── Календарь ────────────────────────────────────────────────
-    function CalendarView() {
+    function AddPlannedModal({ onAdd, onClose }) {
+      const [name, setName]     = useState('');
+      const [amount, setAmount] = useState('');
+      const [date, setDate]     = useState(todayStr());
+      const [person, setPerson] = useState('dasha');
+      const [kind, setKind]     = useState('expense');
+
+      function submit(e) {
+        e.preventDefault();
+        if (!name || !amount || +amount <= 0) return;
+        onAdd({ name, amount: +amount, date, person, kind });
+        onClose();
+      }
+
+      return (
+        <div className="sheet-overlay fixed inset-0 bg-black/40 z-50 flex items-end" onClick={e => e.target === e.currentTarget && onClose()}>
+          <div className="sheet-panel bg-white w-full rounded-t-3xl">
+            <div className="px-5 pt-5 pb-3 flex items-center justify-between border-b border-gray-100">
+              <h2 className="text-base font-bold text-gray-900">Плановая операция</h2>
+              <button onClick={onClose} aria-label="Закрыть" className="w-11 h-11 flex items-center justify-center rounded-full hover:bg-gray-100 cursor-pointer text-gray-500 transition-colors">
+                <Icons.X/>
+              </button>
+            </div>
+            <form onSubmit={submit} className="px-5 pt-4 pb-8 space-y-4">
+              <div className="flex bg-gray-100 rounded-xl p-1">
+                {[{ id: 'expense', label: 'Трата' }, { id: 'income', label: 'Поступление' }].map(k => (
+                  <button type="button" key={k.id} onClick={() => setKind(k.id)}
+                    className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors cursor-pointer
+                      ${kind === k.id ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500'}`}>
+                    {k.label}
+                  </button>
+                ))}
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-500 mb-1.5 block">Название</label>
+                <input type="text" value={name} onChange={e => setName(e.target.value)} required
+                  placeholder="Например: подарок маме"
+                  className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 text-base text-gray-900 focus:outline-none focus:border-blue-500 transition-colors"/>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-500 mb-1.5 block">Сумма</label>
+                <div className="relative">
+                  <input type="number" value={amount} onChange={e => setAmount(e.target.value)}
+                    inputMode="numeric" placeholder="0" min="1" required
+                    className="w-full text-xl font-bold text-gray-900 border-2 border-gray-200 rounded-xl px-4 py-3 pr-10 focus:outline-none focus:border-blue-500 transition-colors"/>
+                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-lg font-medium text-gray-400">₽</span>
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-500 mb-1.5 block">Дата</label>
+                <input type="date" value={date} onChange={e => setDate(e.target.value)}
+                  className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 text-gray-900 focus:outline-none focus:border-blue-500 transition-colors text-base"/>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-500 mb-1.5 block">Участник</label>
+                <div className="flex gap-2">
+                  {[{ id: 'dasha', label: 'Даша', cls: 'border-purple-400 bg-purple-50 text-purple-700' },
+                    { id: 'sasha', label: 'Саша', cls: 'border-blue-400 bg-blue-50 text-blue-700' }].map(p => (
+                    <button type="button" key={p.id} onClick={() => setPerson(p.id)}
+                      className={`flex-1 py-2.5 rounded-xl text-sm font-semibold border-2 transition-colors cursor-pointer
+                        ${person === p.id ? p.cls : 'border-gray-200 text-gray-600'}`}>
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <button type="submit"
+                className="pressable w-full bg-blue-600 text-white py-4 rounded-xl text-base font-semibold hover:bg-blue-700 active:bg-blue-800 cursor-pointer">
+                Добавить в календарь
+              </button>
+            </form>
+          </div>
+        </div>
+      );
+    }
+
+    function CalendarView({ txs, planned, onAddPlanned, onRemovePlanned }) {
+      const [showAdd, setShowAdd] = useState(false);
+      const [showPast, setShowPast] = useState(false);
+      const [openMonths, setOpenMonths] = useState({});
       const now = new Date();
       const todayIso = todayStr();
       const events = [];
 
+      // Внесённые операции (последние 30 дней)
+      const monthAgo = new Date(now); monthAgo.setDate(monthAgo.getDate() - 30);
+      const monthAgoIso = monthAgo.toISOString().slice(0, 10);
+      txs.filter(t => t.date >= monthAgoIso).forEach(t => {
+        events.push({
+          date: t.date,
+          kind: t.kind === 'income' ? 'income' : 'expense',
+          person: t.person,
+          label: (t.kind === 'savings' ? '→ ' : '') + t.category + (t.note ? ` · ${t.note}` : ''),
+          amount: t.amount,
+          actual: true,
+        });
+      });
+
+      // Регулярные плановые на 60 дней вперёд
       for (let d = 0; d <= 60; d++) {
         const dt = new Date(now);
         dt.setDate(dt.getDate() + d);
@@ -710,63 +1142,150 @@
         });
 
         ONE_TIME_EXPENSES.forEach(oe => {
-          const oeDate = new Date(oe.date + 'T12:00:00');
-          if (oe.date === iso && oeDate >= now) {
+          if (oe.date === iso) {
             events.push({ date: iso, kind: 'expense', person: oe.person, label: oe.name, amount: oe.amount, oneTime: true });
           }
         });
       }
 
+      // Пользовательские плановые
+      planned.forEach(p => {
+        events.push({ date: p.date, kind: p.kind, person: p.person, label: p.name, amount: p.amount, oneTime: true, plannedId: p.id });
+      });
+
       const grouped = events
         .sort((a, b) => a.date.localeCompare(b.date))
         .reduce((acc, e) => { (acc[e.date] = acc[e.date] || []).push(e); return acc; }, {});
 
-      const dayTotals = Object.entries(grouped).map(([date, evts]) => ({
-        date,
-        income: evts.filter(e => e.kind === 'income').reduce((s, e) => s + e.amount, 0),
-        expense: evts.filter(e => e.kind === 'expense').reduce((s, e) => s + e.amount, 0),
-      }));
+      // Разбивка: прошлое / ближайшие 3 недели / дальние месяцы
+      const horizonDt = new Date(now); horizonDt.setDate(horizonDt.getDate() + 21);
+      const horizonIso = horizonDt.toISOString().slice(0, 10);
+
+      const allDates = Object.keys(grouped).sort();
+      const pastDates = allDates.filter(d => d < todayIso);
+      const nearDates = allDates.filter(d => d >= todayIso && d <= horizonIso);
+      const farByMonth = allDates.filter(d => d > horizonIso).reduce((acc, d) => {
+        const m = d.slice(0, 7);
+        (acc[m] = acc[m] || []).push(d);
+        return acc;
+      }, {});
+
+      const sumKind = (dates, kind) => dates.reduce((s, d) =>
+        s + grouped[d].filter(e => e.kind === kind).reduce((a, e) => a + e.amount, 0), 0);
+
+      const ChevronIcon = ({ open }) => (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+          className={`w-4 h-4 transition-transform ${open ? 'rotate-180' : ''}`}>
+          <polyline points="6 9 12 15 18 9"/>
+        </svg>
+      );
+
+      const renderDay = (date) => {
+        const evts = grouped[date];
+        const isToday = date === todayIso;
+        const isPast = date < todayIso;
+        const dayIncome  = evts.filter(e => e.kind === 'income').reduce((s, e) => s + e.amount, 0);
+        const dayExpense = evts.filter(e => e.kind === 'expense').reduce((s, e) => s + e.amount, 0);
+        return (
+          <div key={date} className="mx-4 mt-4">
+            <div className="flex items-center gap-2 mb-1.5">
+              <div className={`text-xs font-semibold uppercase tracking-wide ${isToday ? 'text-blue-600' : isPast ? 'text-gray-300' : 'text-gray-400'}`}>
+                {isToday ? 'Сегодня — ' : ''}
+                {new Date(date + 'T12:00:00').toLocaleDateString('ru-RU', { weekday: 'short', day: 'numeric', month: 'long' })}
+              </div>
+              <div className="flex gap-1 ml-auto">
+                {dayIncome  > 0 && <span className="text-xs font-medium text-green-600">+{fmt(dayIncome)}</span>}
+                {dayExpense > 0 && <span className="text-xs font-medium text-red-500">−{fmt(dayExpense)}</span>}
+              </div>
+            </div>
+            <Card className={`divide-y divide-gray-50 ${isPast ? 'opacity-70' : ''}`}>
+              {evts.map((e, i) => (
+                <div key={i} className="flex items-center px-4 py-3 gap-3">
+                  <div className={`w-2 h-2 rounded-full flex-shrink-0 ${e.actual ? (e.kind === 'income' ? 'bg-green-600' : 'bg-gray-800') : e.kind === 'income' ? 'bg-green-300' : e.oneTime ? 'bg-amber-400' : 'bg-red-300'}`}/>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm text-gray-900 font-medium truncate">{e.label}</div>
+                    <div className="flex items-center gap-1.5">
+                      <PersonChip person={e.person}/>
+                      <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${e.actual ? 'bg-gray-100 text-gray-500' : 'bg-amber-50 text-amber-600'}`}>
+                        {e.actual ? 'факт' : 'план'}
+                      </span>
+                    </div>
+                  </div>
+                  <div className={`text-sm font-semibold ${e.kind === 'income' ? 'text-green-600' : 'text-red-500'}`}>
+                    {e.kind === 'income' ? '+' : '−'}{fmt(e.amount)} ₽
+                  </div>
+                  {e.plannedId && (
+                    <button onClick={() => onRemovePlanned(e.plannedId)} aria-label="Удалить плановую операцию"
+                      className="w-10 h-10 flex items-center justify-center text-gray-300 hover:text-red-400 cursor-pointer transition-colors rounded-lg hover:bg-red-50">
+                      <Icons.Trash/>
+                    </button>
+                  )}
+                </div>
+              ))}
+            </Card>
+          </div>
+        );
+      };
 
       return (
         <div className="pb-4">
-          <div className="px-4 pt-4 pb-1">
-            <div className="text-sm font-semibold text-gray-600">Ближайшие события</div>
-            <div className="text-xs text-gray-400 mt-0.5">Плановые поступления и платежи на 60 дней</div>
+          <div className="px-4 pt-4 pb-1 flex items-start justify-between gap-3">
+            <div>
+              <div className="text-sm font-semibold text-gray-600">Календарь</div>
+              <div className="text-xs text-gray-400 mt-0.5">Ближайшие 3 недели + планы на будущее</div>
+            </div>
+            <button onClick={() => setShowAdd(true)}
+              className="pressable flex items-center gap-1 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-3 py-2 rounded-xl cursor-pointer flex-shrink-0">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className="w-3.5 h-3.5">
+                <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+              </svg>
+              Плановая трата
+            </button>
           </div>
 
-          {Object.entries(grouped).map(([date, evts]) => {
-            const isToday = date === todayIso;
-            const dayIncome  = evts.filter(e => e.kind === 'income').reduce((s, e) => s + e.amount, 0);
-            const dayExpense = evts.filter(e => e.kind === 'expense').reduce((s, e) => s + e.amount, 0);
+          {/* Прошедшее — свёрнуто */}
+          {pastDates.length > 0 && (
+            <div className="mx-4 mt-3">
+              <button onClick={() => setShowPast(s => !s)}
+                className="w-full flex items-center justify-between bg-gray-100 hover:bg-gray-200 rounded-xl px-4 py-3 cursor-pointer transition-colors">
+                <span className="text-sm font-medium text-gray-500">
+                  Прошедшие дни · {pastDates.reduce((s, d) => s + grouped[d].length, 0)} операций
+                </span>
+                <span className="text-gray-400"><ChevronIcon open={showPast}/></span>
+              </button>
+            </div>
+          )}
+          {showPast && pastDates.map(renderDay)}
+
+          {/* Ближайшие 3 недели — развёрнуто */}
+          {nearDates.map(renderDay)}
+
+          {/* Дальше — по месяцам, свёрнуто */}
+          {Object.entries(farByMonth).map(([month, dates]) => {
+            const open = !!openMonths[month];
+            const inc = sumKind(dates, 'income');
+            const exp = sumKind(dates, 'expense');
+            const monthName = ruMonth(month);
             return (
-              <div key={date} className="mx-4 mt-4">
-                <div className="flex items-center gap-2 mb-1.5">
-                  <div className={`text-xs font-semibold uppercase tracking-wide ${isToday ? 'text-blue-600' : 'text-gray-400'}`}>
-                    {isToday ? 'Сегодня — ' : ''}
-                    {new Date(date + 'T12:00:00').toLocaleDateString('ru-RU', { weekday: 'short', day: 'numeric', month: 'long' })}
-                  </div>
-                  <div className="flex gap-1 ml-auto">
-                    {dayIncome  > 0 && <span className="text-xs font-medium text-green-600">+{fmt(dayIncome)}</span>}
-                    {dayExpense > 0 && <span className="text-xs font-medium text-red-500">−{fmt(dayExpense)}</span>}
-                  </div>
+              <React.Fragment key={month}>
+                <div className="mx-4 mt-4">
+                  <button onClick={() => setOpenMonths(m => ({ ...m, [month]: !m[month] }))}
+                    className="w-full flex items-center justify-between bg-white border border-gray-100 rounded-xl px-4 py-3.5 cursor-pointer hover:bg-gray-50 transition-colors"
+                    style={{ boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
+                    <span className="text-sm font-semibold text-gray-700 capitalize">{monthName}</span>
+                    <span className="flex items-center gap-2">
+                      {inc > 0 && <span className="text-xs font-medium text-green-600">+{fmt(inc)}</span>}
+                      {exp > 0 && <span className="text-xs font-medium text-red-500">−{fmt(exp)}</span>}
+                      <span className="text-gray-400"><ChevronIcon open={open}/></span>
+                    </span>
+                  </button>
                 </div>
-                <Card className="divide-y divide-gray-50">
-                  {evts.map((e, i) => (
-                    <div key={i} className="flex items-center px-4 py-3 gap-3">
-                      <div className={`w-2 h-2 rounded-full flex-shrink-0 ${e.kind === 'income' ? 'bg-green-500' : e.oneTime ? 'bg-amber-400' : 'bg-red-400'}`}/>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-sm text-gray-900 font-medium">{e.label}</div>
-                        <PersonChip person={e.person}/>
-                      </div>
-                      <div className={`text-sm font-semibold ${e.kind === 'income' ? 'text-green-600' : 'text-red-500'}`}>
-                        {e.kind === 'income' ? '+' : '−'}{fmt(e.amount)} ₽
-                      </div>
-                    </div>
-                  ))}
-                </Card>
-              </div>
+                {open && dates.map(renderDay)}
+              </React.Fragment>
             );
           })}
+
+          {showAdd && <AddPlannedModal onAdd={onAddPlanned} onClose={() => setShowAdd(false)}/>}
         </div>
       );
     }
@@ -788,8 +1307,8 @@
           <div className="flex items-center max-w-lg mx-auto">
             {LEFT.map(t => <Item key={t.id} {...t}/>)}
             <div className="flex-1 flex justify-center">
-              <button onClick={onAdd}
-                className="w-12 h-12 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 rounded-full flex items-center justify-center text-white shadow-lg shadow-blue-200 cursor-pointer transition-colors -mt-5">
+              <button onClick={onAdd} aria-label="Добавить операцию"
+                className="pressable w-12 h-12 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 rounded-full flex items-center justify-center text-white shadow-lg shadow-blue-200 cursor-pointer -mt-5">
                 <Icons.Plus/>
               </button>
             </div>
@@ -804,7 +1323,15 @@
     function App() {
       const [tab, setTab]       = useState('dashboard');
       const [showAdd, setShowAdd] = useState(false);
-      const { txs, add, remove, loading } = useTransactions();
+      const [editTx, setEditTx] = useState(null);
+      const { txs, add, update, remove, renameCategory, loading } = useTransactions();
+      const { planned, add: addPlanned, remove: removePlanned } = usePlanned();
+
+      const closeModal = () => { setShowAdd(false); setEditTx(null); };
+      const handleSave = (tx) => {
+        if (editTx) update(editTx.id, tx);
+        else add(tx);
+      };
 
       return (
         <div className="min-h-screen bg-gray-50 max-w-lg mx-auto relative">
@@ -824,7 +1351,7 @@
           {/* Загрузка */}
           {loading && (
             <div className="fixed inset-0 bg-white z-50 flex flex-col items-center justify-center gap-3">
-              <div className="w-10 h-10 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"/>
+              <div className="w-10 h-10 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" style={{ animationDuration: '0.6s' }}/>
               <div className="text-sm text-gray-400">Загружаем данные...</div>
             </div>
           )}
@@ -832,14 +1359,14 @@
           {/* Контент */}
           <div className="pb-24">
             {tab === 'dashboard' && <Dashboard txs={txs} onAdd={() => setShowAdd(true)}/>}
-            {tab === 'txs'       && <Transactions txs={txs} onDelete={remove}/>}
+            {tab === 'txs'       && <Transactions txs={txs} onDelete={remove} onEdit={(tx) => { setEditTx(tx); setShowAdd(true); }} onRenameCategory={renameCategory}/>}
             {tab === 'plan'      && <Plan txs={txs}/>}
-            {tab === 'calendar'  && <CalendarView/>}
+            {tab === 'calendar'  && <CalendarView txs={txs} planned={planned} onAddPlanned={addPlanned} onRemovePlanned={removePlanned}/>}
           </div>
 
           <BottomNav tab={tab} setTab={setTab} onAdd={() => setShowAdd(true)}/>
 
-          {showAdd && <AddModal onAdd={add} onClose={() => setShowAdd(false)}/>}
+          {showAdd && <AddModal onAdd={handleSave} onClose={closeModal} editTx={editTx}/>}
         </div>
       );
     }
