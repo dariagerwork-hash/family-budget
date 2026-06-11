@@ -174,13 +174,29 @@
       { name: 'Кружки',          amount: 10000, day: 15, person: 'sasha' },
       { name: 'Коммуналка',      amount: 10000, day: 15, person: 'sasha' },
       { name: 'Бензин',          amount: 15000, day: 10, person: 'dasha' },
+      { name: 'Корм котам',      amount: 6000,  day: 10, person: 'dasha' },
     ];
 
     const ONE_TIME_EXPENSES = [
       { name: 'Долг',                  amount: 10000, date: '2026-06-10', person: 'dasha' },
       { name: 'Обслуживание машины',   amount: 15000, date: '2026-06-13', person: 'dasha' },
       { name: 'Кроватка',              amount: 30000, date: '2026-06-30', person: 'sasha' },
-      { name: 'Подарки (2 ДР)',        amount: 10000, date: '2026-07-06', person: 'dasha' },
+    ];
+
+    // Дни рождения: подарки появляются в календаре каждый год
+    const BIRTHDAYS = [
+      { name: 'Папа',            month: 10, day: 30, amount: 5000 },
+      { name: 'Мама Даша',       month: 2,  day: 12, amount: 5000 },
+      { name: 'Оксана',          month: 1,  day: 8,  amount: 3000 },
+      { name: 'Мама Саша',       month: 1,  day: 6,  amount: 5000 },
+      { name: 'Женя Саша',       month: 12, day: 8,  amount: 3000 },
+      { name: 'Юля',             month: 6,  day: 23, amount: 3000 },
+      { name: 'Женя Даша',       month: 8,  day: 17, amount: 3000 },
+      { name: 'Данил Иванов',    month: 6,  day: 21, amount: 5000 },
+      { name: 'Виталя Головин',  month: 7,  day: 6,  amount: 5000 },
+      { name: 'Лера Голянская',  month: 7,  day: 6,  amount: 5000 },
+      { name: 'Дима Племянник',  month: 6,  day: 27, amount: 3000 },
+      { name: 'Тема Уткин',      month: 3,  day: 7,  amount: 5000 },
     ];
 
     const EXPENSE_CATEGORIES = [
@@ -1146,6 +1162,12 @@
             events.push({ date: iso, kind: 'expense', person: oe.person, label: oe.name, amount: oe.amount, oneTime: true });
           }
         });
+
+        BIRTHDAYS.forEach(bd => {
+          if (bd.month === dt.getMonth() + 1 && bd.day === dt.getDate()) {
+            events.push({ date: iso, kind: 'expense', label: `ДР — ${bd.name}`, amount: bd.amount, birthday: true });
+          }
+        });
       }
 
       // Пользовательские плановые
@@ -1201,7 +1223,7 @@
             <Card className={`divide-y divide-gray-50 ${isPast ? 'opacity-70' : ''}`}>
               {evts.map((e, i) => (
                 <div key={i} className="flex items-center px-4 py-3 gap-3">
-                  <div className={`w-2 h-2 rounded-full flex-shrink-0 ${e.actual ? (e.kind === 'income' ? 'bg-green-600' : 'bg-gray-800') : e.kind === 'income' ? 'bg-green-300' : e.oneTime ? 'bg-amber-400' : 'bg-red-300'}`}/>
+                  <div className={`w-2 h-2 rounded-full flex-shrink-0 ${e.birthday ? 'bg-pink-400' : e.actual ? (e.kind === 'income' ? 'bg-green-600' : 'bg-gray-800') : e.kind === 'income' ? 'bg-green-300' : e.oneTime ? 'bg-amber-400' : 'bg-red-300'}`}/>
                   <div className="flex-1 min-w-0">
                     <div className="text-sm text-gray-900 font-medium truncate">{e.label}</div>
                     <div className="flex items-center gap-1.5">
