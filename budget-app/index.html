@@ -316,6 +316,30 @@
       return { planned, add, remove };
     }
 
+    // ─── Цели накоплений ──────────────────────────────────────────
+    function useGoals() {
+      const [goals, setGoals] = useState([]);
+
+      useEffect(() => {
+        const unsub = db.collection('goals')
+          .orderBy('deadline')
+          .onSnapshot(snap => {
+            setGoals(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+          }, err => console.error(err));
+        return unsub;
+      }, []);
+
+      const add = useCallback(async (g) => {
+        await db.collection('goals').add(g);
+      }, []);
+
+      const remove = useCallback(async (id) => {
+        await db.collection('goals').doc(id).delete();
+      }, []);
+
+      return { goals, add, remove };
+    }
+
     // ─── SVG-иконки ───────────────────────────────────────────────
     const svgProps = { viewBox:'0 0 24 24', fill:'none', stroke:'currentColor', strokeWidth:'2', strokeLinecap:'round', strokeLinejoin:'round' };
 
@@ -371,11 +395,11 @@
     }
 
     // ─── Дашборд ──────────────────────────────────────────────────
-    function Dashboard({ txs, onAdd }) {
+    function Dashboard({ txs, onAdd, onOpenGoals }) {
       const cm = currentMonth();
 
       const totalSavings = useMemo(() =>
-        txs.filter(t => t.kind === 'savings').reduce((s, t) => s + t.amount, 0), [txs]);
+        txs.filter(t => t.kind === 'savings' && !t.goalId).reduce((s, t) => s + t.amount, 0), [txs]);
 
       const pct = (totalSavings / GOAL) * 100;
       const days = daysUntilGoal();
@@ -383,7 +407,7 @@
       const cmTxs = txs.filter(t => t.date.startsWith(cm));
       const cmIncome   = cmTxs.filter(t => t.kind === 'income').reduce((s, t) => s + t.amount, 0);
       const cmExpenses = cmTxs.filter(t => t.kind === 'expense').reduce((s, t) => s + t.amount, 0);
-      const cmSavings  = cmTxs.filter(t => t.kind === 'savings').reduce((s, t) => s + t.amount, 0);
+      const cmSavings  = cmTxs.filter(t => t.kind === 'savings' && !t.goalId).reduce((s, t) => s + t.amount, 0);
 
       const planSavings = MONTHLY_SAVINGS_PLAN[cm] || 160000;
       const onTrack = cmSavings >= planSavings * 0.5 || cmSavings === 0;
@@ -396,7 +420,16 @@
 
           {/* Цель */}
           <Card className="mx-4 mt-4 p-5">
-            <div className="text-xs text-gray-400 font-medium mb-3 uppercase tracking-wide">Цель — 600 000 ₽ к 10 ноября</div>
+            <div className="flex items-center justify-between mb-3">
+              <div className="text-xs text-gray-400 font-medium uppercase tracking-wide">Цель — 600 000 ₽ к 10 ноября</div>
+              <button onClick={onOpenGoals}
+                className="flex items-center gap-0.5 text-xs font-semibold text-blue-600 hover:text-blue-700 cursor-pointer transition-colors py-1">
+                Все цели
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
+                  <polyline points="9 18 15 12 9 6"/>
+                </svg>
+              </button>
+            </div>
             <div className="flex items-center gap-4">
               <div className="relative flex-shrink-0">
                 <Ring pct={pct} size={96} stroke={8}/>
@@ -453,7 +486,7 @@
             <Card>
               {Object.entries(CUMULATIVE_PLAN).map(([key, target], i, arr) => {
                 const cumActual = txs
-                  .filter(t => t.kind === 'savings' && t.date.slice(0, 7) <= key)
+                  .filter(t => t.kind === 'savings' && !t.goalId && t.date.slice(0, 7) <= key)
                   .reduce((s, t) => s + t.amount, 0);
                 const isCurrent = key === cm;
                 const isPast = key < cm;
@@ -631,20 +664,28 @@
     }
 
     // ─── Форма добавления ─────────────────────────────────────────
-    function AddModal({ onAdd, onClose, editTx }) {
+    function AddModal({ onAdd, onClose, editTx, goals = [] }) {
       const [kind, setKind]       = useState(editTx ? editTx.kind : 'expense');
       const [person, setPerson]   = useState(editTx ? editTx.person : 'dasha');
       const [amount, setAmount]   = useState(editTx ? String(editTx.amount) : '');
       const [category, setCategory] = useState(editTx ? editTx.category : '');
       const [date, setDate]       = useState(editTx ? editTx.date : todayStr());
       const [note, setNote]       = useState(editTx ? (editTx.note || '') : '');
+      const [goalId, setGoalId]   = useState(editTx ? (editTx.goalId || null) : null);
 
       const cats = kind === 'income' ? INCOME_CATEGORIES : kind === 'expense' ? EXPENSE_CATEGORIES : [];
 
       function submit(e) {
         e.preventDefault();
         if (!amount || +amount <= 0) return;
-        onAdd({ kind, person: kind === 'savings' ? 'sasha' : person, amount: +amount, category: category || (kind === 'savings' ? 'В копилку' : kind), date, note });
+        onAdd({
+          kind,
+          person: kind === 'savings' ? 'sasha' : person,
+          amount: +amount,
+          category: category || (kind === 'savings' ? 'В копилку' : kind),
+          date, note,
+          ...(kind === 'savings' && goalId ? { goalId } : {}),
+        });
         onClose();
       }
 
@@ -690,6 +731,22 @@
                         className={`flex-1 py-2.5 rounded-xl text-sm font-semibold border-2 transition-colors cursor-pointer
                           ${person === p.id ? p.border : p.inactive}`}>
                         {p.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Цель (для копилки) */}
+              {kind === 'savings' && goals.length > 0 && (
+                <div>
+                  <label className="text-xs font-medium text-gray-500 mb-1.5 block">Цель</label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {[{ id: null, name: 'Основная' }, ...goals].map(g => (
+                      <button type="button" key={g.id || 'main'} onClick={() => setGoalId(g.id)}
+                        className={`px-3 py-2 rounded-xl text-xs font-medium border-2 transition-colors cursor-pointer
+                          ${goalId === g.id ? 'border-blue-400 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600 hover:border-gray-300'}`}>
+                        {g.name}
                       </button>
                     ))}
                   </div>
@@ -758,7 +815,7 @@
       const actual = {
         income:  cmTxs.filter(t => t.kind === 'income').reduce((s, t) => s + t.amount, 0),
         expense: cmTxs.filter(t => t.kind === 'expense').reduce((s, t) => s + t.amount, 0),
-        savings: cmTxs.filter(t => t.kind === 'savings').reduce((s, t) => s + t.amount, 0),
+        savings: cmTxs.filter(t => t.kind === 'savings' && !t.goalId).reduce((s, t) => s + t.amount, 0),
       };
 
       const planSavings = MONTHLY_SAVINGS_PLAN[sel] || 160000;
@@ -773,7 +830,7 @@
 
       const cumPlan   = CUMULATIVE_PLAN[sel] || 0;
       const cumActual = txs
-        .filter(t => t.kind === 'savings' && t.date.slice(0, 7) <= sel)
+        .filter(t => t.kind === 'savings' && !t.goalId && t.date.slice(0, 7) <= sel)
         .reduce((s, t) => s + t.amount, 0);
       const ahead = cumActual - cumPlan;
 
@@ -1312,6 +1369,212 @@
       );
     }
 
+    // ─── Цели ─────────────────────────────────────────────────────
+    function NewGoalModal({ onAdd, onClose }) {
+      const [name, setName]         = useState('');
+      const [target, setTarget]     = useState('');
+      const [deadline, setDeadline] = useState('');
+
+      function submit(e) {
+        e.preventDefault();
+        if (!name.trim() || !target || +target <= 0 || !deadline) return;
+        onAdd({ name: name.trim(), target: +target, deadline });
+        onClose();
+      }
+
+      return (
+        <div className="sheet-overlay fixed inset-0 bg-black/40 z-50 flex items-end" onClick={e => e.target === e.currentTarget && onClose()}>
+          <div className="sheet-panel bg-white w-full rounded-t-3xl">
+            <div className="px-5 pt-5 pb-3 flex items-center justify-between border-b border-gray-100">
+              <h2 className="text-base font-bold text-gray-900">Новая цель</h2>
+              <button onClick={onClose} aria-label="Закрыть" className="w-11 h-11 flex items-center justify-center rounded-full hover:bg-gray-100 cursor-pointer text-gray-500 transition-colors">
+                <Icons.X/>
+              </button>
+            </div>
+            <form onSubmit={submit} className="px-5 pt-4 pb-8 space-y-4">
+              <div>
+                <label className="text-xs font-medium text-gray-500 mb-1.5 block">Название</label>
+                <input type="text" value={name} onChange={e => setName(e.target.value)} required
+                  placeholder="Например: отпуск на море"
+                  className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 text-base text-gray-900 focus:outline-none focus:border-blue-500 transition-colors"/>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-500 mb-1.5 block">Сколько накопить</label>
+                <div className="relative">
+                  <input type="number" value={target} onChange={e => setTarget(e.target.value)}
+                    inputMode="numeric" placeholder="0" min="1" required
+                    className="w-full text-xl font-bold text-gray-900 border-2 border-gray-200 rounded-xl px-4 py-3 pr-10 focus:outline-none focus:border-blue-500 transition-colors"/>
+                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-lg font-medium text-gray-400">₽</span>
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-500 mb-1.5 block">Срок</label>
+                <input type="date" value={deadline} onChange={e => setDeadline(e.target.value)} required
+                  className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 text-gray-900 focus:outline-none focus:border-blue-500 transition-colors text-base"/>
+              </div>
+              <button type="submit"
+                className="pressable w-full bg-blue-600 text-white py-4 rounded-xl text-base font-semibold hover:bg-blue-700 active:bg-blue-800 cursor-pointer">
+                Создать цель
+              </button>
+            </form>
+          </div>
+        </div>
+      );
+    }
+
+    function FundGoalModal({ goal, onAddTx, onClose }) {
+      const [amount, setAmount] = useState('');
+      const [date, setDate]     = useState(todayStr());
+
+      function submit(e) {
+        e.preventDefault();
+        if (!amount || +amount <= 0) return;
+        onAddTx({ kind: 'savings', person: 'sasha', amount: +amount, category: 'В копилку', date, note: goal.name, goalId: goal.id });
+        onClose();
+      }
+
+      return (
+        <div className="sheet-overlay fixed inset-0 bg-black/40 z-50 flex items-end" onClick={e => e.target === e.currentTarget && onClose()}>
+          <div className="sheet-panel bg-white w-full rounded-t-3xl">
+            <div className="px-5 pt-5 pb-3 flex items-center justify-between border-b border-gray-100">
+              <h2 className="text-base font-bold text-gray-900">Пополнить «{goal.name}»</h2>
+              <button onClick={onClose} aria-label="Закрыть" className="w-11 h-11 flex items-center justify-center rounded-full hover:bg-gray-100 cursor-pointer text-gray-500 transition-colors">
+                <Icons.X/>
+              </button>
+            </div>
+            <form onSubmit={submit} className="px-5 pt-4 pb-8 space-y-4">
+              <div>
+                <label className="text-xs font-medium text-gray-500 mb-1.5 block">Сумма</label>
+                <div className="relative">
+                  <input type="number" value={amount} onChange={e => setAmount(e.target.value)}
+                    inputMode="numeric" placeholder="0" min="1" required autoFocus
+                    className="w-full text-2xl font-bold text-gray-900 border-2 border-gray-200 rounded-xl px-4 py-3 pr-10 focus:outline-none focus:border-blue-500 transition-colors"/>
+                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xl font-medium text-gray-400">₽</span>
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-500 mb-1.5 block">Дата</label>
+                <input type="date" value={date} onChange={e => setDate(e.target.value)}
+                  className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 text-gray-900 focus:outline-none focus:border-blue-500 transition-colors text-base"/>
+              </div>
+              <button type="submit"
+                className="pressable w-full bg-blue-600 text-white py-4 rounded-xl text-base font-semibold hover:bg-blue-700 active:bg-blue-800 cursor-pointer">
+                Пополнить
+              </button>
+            </form>
+          </div>
+        </div>
+      );
+    }
+
+    function GoalsView({ goals, txs, onAddGoal, onRemoveGoal, onAddTx, onBack }) {
+      const [showNew, setShowNew] = useState(false);
+      const [funding, setFunding] = useState(null);
+
+      const savedFor = (goalId) => txs
+        .filter(t => t.kind === 'savings' && (goalId ? t.goalId === goalId : !t.goalId))
+        .reduce((s, t) => s + t.amount, 0);
+
+      const daysTo = (d) => Math.max(0, Math.ceil((new Date(d + 'T23:59:59') - new Date()) / 86400000));
+
+      const mainSaved = savedFor(null);
+      const mainPct = Math.min((mainSaved / GOAL) * 100, 100);
+
+      const GoalCard = ({ name, target, deadline, saved, onFund, onRemove, isMain }) => {
+        const pct = Math.min((saved / target) * 100, 100);
+        const done = saved >= target;
+        return (
+          <Card className={`p-4 ${isMain ? 'border-2 border-blue-100' : ''}`}>
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <div className="text-sm font-bold text-gray-900 truncate">{name}</div>
+                <div className="text-xs text-gray-400 mt-0.5">
+                  до {ruDate(deadline)} · осталось {daysTo(deadline)} дн.
+                </div>
+              </div>
+              {onRemove && (
+                <button onClick={onRemove} aria-label={`Удалить цель ${name}`}
+                  className="w-10 h-10 -mt-1 -mr-1 flex items-center justify-center text-gray-300 hover:text-red-400 cursor-pointer transition-colors rounded-lg hover:bg-red-50 flex-shrink-0">
+                  <Icons.Trash/>
+                </button>
+              )}
+            </div>
+
+            <div className="mt-3 h-2.5 bg-gray-100 rounded-full overflow-hidden">
+              <div className="h-full rounded-full transition-[width] duration-500"
+                style={{ width: `${pct}%`, backgroundColor: done ? '#4B7026' : '#5F8C2F' }}/>
+            </div>
+            <div className="flex items-baseline justify-between mt-1.5">
+              <span className="text-sm font-semibold text-gray-900">{fmt(saved)} ₽ <span className="font-normal text-gray-400">из {fmt(target)}</span></span>
+              <span className={`text-xs font-semibold ${done ? 'text-green-600' : 'text-gray-400'}`}>{Math.round(pct)}%</span>
+            </div>
+
+            {done ? (
+              <div className="mt-3 text-center text-sm font-semibold text-green-600 bg-green-50 rounded-xl py-2.5">Цель достигнута!</div>
+            ) : onFund && (
+              <button onClick={onFund}
+                className="pressable mt-3 w-full bg-blue-50 text-blue-700 py-2.5 rounded-xl text-sm font-semibold hover:bg-blue-100 cursor-pointer">
+                Пополнить
+              </button>
+            )}
+          </Card>
+        );
+      };
+
+      return (
+        <div className="pb-4">
+          <div className="px-4 pt-4 pb-1 flex items-center justify-between gap-3">
+            <button onClick={onBack}
+              className="flex items-center gap-1 text-sm font-medium text-gray-500 hover:text-gray-700 cursor-pointer transition-colors py-2">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+                <polyline points="15 18 9 12 15 6"/>
+              </svg>
+              Назад
+            </button>
+            <button onClick={() => setShowNew(true)}
+              className="pressable flex items-center gap-1 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-3 py-2 rounded-xl cursor-pointer flex-shrink-0">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className="w-3.5 h-3.5">
+                <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+              </svg>
+              Новая цель
+            </button>
+          </div>
+
+          <div className="px-4 pt-2">
+            <div className="text-base font-bold text-gray-900">Цели</div>
+            <div className="text-xs text-gray-400 mt-0.5">Основная копилка и ваши цели</div>
+          </div>
+
+          <div className="mx-4 mt-3 space-y-3">
+            <GoalCard name="Основная цель" target={GOAL} deadline="2026-11-10" saved={mainSaved} isMain/>
+
+            {goals.map(g => (
+              <GoalCard key={g.id} name={g.name} target={g.target} deadline={g.deadline}
+                saved={savedFor(g.id)}
+                onFund={() => setFunding(g)}
+                onRemove={() => {
+                  if (window.confirm(`Удалить цель «${g.name}»? Пополнения останутся в истории операций.`)) onRemoveGoal(g.id);
+                }}/>
+            ))}
+
+            {goals.length === 0 && (
+              <button onClick={() => setShowNew(true)}
+                className="w-full border-2 border-dashed border-gray-200 rounded-2xl py-8 text-center cursor-pointer hover:border-blue-300 hover:bg-blue-50 transition-colors group">
+                <div className="w-10 h-10 bg-gray-100 group-hover:bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-2 transition-colors">
+                  <Icons.Plus/>
+                </div>
+                <div className="text-sm text-gray-500">Создайте первую цель</div>
+                <div className="text-xs text-gray-400 mt-0.5">отпуск, ремонт, подушка безопасности...</div>
+              </button>
+            )}
+          </div>
+
+          {showNew && <NewGoalModal onAdd={onAddGoal} onClose={() => setShowNew(false)}/>}
+          {funding && <FundGoalModal goal={funding} onAddTx={onAddTx} onClose={() => setFunding(null)}/>}
+        </div>
+      );
+    }
+
     // ─── Нижняя навигация ─────────────────────────────────────────
     function BottomNav({ tab, setTab, onAdd }) {
       const LEFT  = [{ id: 'dashboard', label: 'Главная', Icon: Icons.Home }, { id: 'txs', label: 'Операции', Icon: Icons.List }];
@@ -1348,6 +1611,7 @@
       const [editTx, setEditTx] = useState(null);
       const { txs, add, update, remove, renameCategory, loading } = useTransactions();
       const { planned, add: addPlanned, remove: removePlanned } = usePlanned();
+      const { goals, add: addGoal, remove: removeGoal } = useGoals();
 
       const closeModal = () => { setShowAdd(false); setEditTx(null); };
       const handleSave = (tx) => {
@@ -1380,7 +1644,8 @@
 
           {/* Контент */}
           <div className="pb-24">
-            {tab === 'dashboard' && <Dashboard txs={txs} onAdd={() => setShowAdd(true)}/>}
+            {tab === 'dashboard' && <Dashboard txs={txs} onAdd={() => setShowAdd(true)} onOpenGoals={() => setTab('goals')}/>}
+            {tab === 'goals'     && <GoalsView goals={goals} txs={txs} onAddGoal={addGoal} onRemoveGoal={removeGoal} onAddTx={add} onBack={() => setTab('dashboard')}/>}
             {tab === 'txs'       && <Transactions txs={txs} onDelete={remove} onEdit={(tx) => { setEditTx(tx); setShowAdd(true); }} onRenameCategory={renameCategory}/>}
             {tab === 'plan'      && <Plan txs={txs}/>}
             {tab === 'calendar'  && <CalendarView txs={txs} planned={planned} onAddPlanned={addPlanned} onRemovePlanned={removePlanned}/>}
@@ -1388,7 +1653,7 @@
 
           <BottomNav tab={tab} setTab={setTab} onAdd={() => setShowAdd(true)}/>
 
-          {showAdd && <AddModal onAdd={handleSave} onClose={closeModal} editTx={editTx}/>}
+          {showAdd && <AddModal onAdd={handleSave} onClose={closeModal} editTx={editTx} goals={goals}/>}
         </div>
       );
     }
