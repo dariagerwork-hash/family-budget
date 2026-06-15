@@ -668,10 +668,12 @@
       return (
         <div className="pb-4">
           <div className="px-4 pt-4 pb-2 flex items-center gap-2">
-            <div className="flex-1 flex gap-2 hide-scrollbar overflow-x-auto">
-              {FILTERS.map(f => (
-                <Chip key={f.id} active={filter === f.id} onClick={() => setFilter(f.id)}>{f.label}</Chip>
-              ))}
+            <div className="flex-1 min-w-0 overflow-x-auto hide-scrollbar">
+              <div className="flex gap-2 w-max">
+                {FILTERS.map(f => (
+                  <Chip key={f.id} active={filter === f.id} onClick={() => setFilter(f.id)}>{f.label}</Chip>
+                ))}
+              </div>
             </div>
             <button onClick={() => setShowAnalytics(s => !s)}
               aria-label={showAnalytics ? 'Скрыть аналитику' : 'Показать аналитику'}
@@ -1087,10 +1089,15 @@
     function CategoryAnalytics({ allTxs, onRenameCategory }) {
       const months = Object.keys(CUMULATIVE_PLAN);
       const [sel, setSel] = useState(currentMonth());
+      const [person, setPerson] = useState(null);
       const [renaming, setRenaming] = useState(null);
 
-      const expenses = useMemo(() =>
+      const allExpenses = useMemo(() =>
         allTxs.filter(t => t.kind === 'expense' && t.date.startsWith(sel)), [allTxs, sel]);
+
+      const expenses = useMemo(() =>
+        person ? allExpenses.filter(t => t.person === person) : allExpenses, [allExpenses, person]);
+
       const total = expenses.reduce((s, t) => s + t.amount, 0);
 
       const byCat = useMemo(() => {
@@ -1101,13 +1108,29 @@
           .sort((a, b) => b.sum - a.sum);
       }, [expenses, total]);
 
+      const PERSONS = [
+        { id: null,    label: 'Все' },
+        { id: 'dasha', label: 'Даша' },
+        { id: 'sasha', label: 'Саша' },
+      ];
+
       return (
         <div className="mt-3">
-          {/* Фильтр по месяцам — действует только здесь */}
-          <div className="px-4 pb-3 flex gap-2 hide-scrollbar overflow-x-auto">
-            {months.map(m => (
-              <Chip key={m} active={sel === m} onClick={() => setSel(m)}>
-                {ruMonth(m)}
+          {/* Фильтр по месяцам */}
+          <div className="px-4 pb-2 overflow-x-auto hide-scrollbar">
+            <div className="flex gap-2 w-max">
+              {months.map(m => (
+                <Chip key={m} active={sel === m} onClick={() => setSel(m)}>
+                  {ruMonth(m)}
+                </Chip>
+              ))}
+            </div>
+          </div>
+          {/* Фильтр по участнику */}
+          <div className="px-4 pb-3 flex gap-2">
+            {PERSONS.map(p => (
+              <Chip key={String(p.id)} active={person === p.id} onClick={() => setPerson(p.id)}>
+                {p.label}
               </Chip>
             ))}
           </div>
