@@ -142,15 +142,15 @@
     const GOAL_DATE = new Date('2026-11-10');
 
     const CUMULATIVE_PLAN = {
-      '2026-06': 115000,
-      '2026-07': 275000,
-      '2026-08': 435000,
-      '2026-09': 595000,
-      '2026-10': 755000,
+      '2026-06': 110000,
+      '2026-07': 270000,
+      '2026-08': 430000,
+      '2026-09': 590000,
+      '2026-10': 750000,
     };
 
     const MONTHLY_SAVINGS_PLAN = {
-      '2026-06': 115000,
+      '2026-06': 110000,
       '2026-07': 160000,
       '2026-08': 160000,
       '2026-09': 160000,
@@ -168,13 +168,14 @@
     ];
 
     const SCHEDULED_BILLS = [
-      { name: 'Ипотека',         amount: 35000, day: 15, person: 'sasha' },
-      { name: 'Кредит (машина)', amount: 30000, day: 15, person: 'sasha' },
-      { name: 'Садик Миры',      amount: 5000,  day: 10, person: 'dasha' },
-      { name: 'Кружки',          amount: 10000, day: 15, person: 'sasha' },
-      { name: 'Коммуналка',      amount: 10000, day: 15, person: 'sasha' },
-      { name: 'Бензин',          amount: 15000, day: 10, person: 'dasha' },
-      { name: 'Корм котам',      amount: 6000,  day: 10, person: 'dasha' },
+      { name: 'Ипотека',    amount: 35000, day: 15, person: 'sasha' },
+      { name: 'Машина',     amount: 30000, day: 15, person: 'sasha' },
+      { name: 'Бензин',     amount: 15000, day: 10, person: 'dasha' },
+      { name: 'Коммуналка', amount: 10000, day: 15, person: 'sasha' },
+      { name: 'Гимнастика', amount: 3840,  day: 10, person: 'dasha' },
+      { name: 'Акробатика', amount: 2500,  day: 10, person: 'dasha' },
+      { name: 'Футбол',     amount: 2400,  day: 15, person: 'sasha' },
+      { name: 'Корм котам', amount: 6000,  day: 10, person: 'dasha' },
     ];
 
     const ONE_TIME_EXPENSES = [
@@ -340,6 +341,43 @@
       return { goals, add, remove };
     }
 
+    // Основная цель: параметры можно менять, хранятся в Firebase
+    const DEFAULT_MAIN_GOAL = { target: GOAL, deadline: '2026-11-10' };
+
+    function useMainGoal() {
+      const [main, setMain] = useState(DEFAULT_MAIN_GOAL);
+
+      useEffect(() => {
+        const unsub = db.collection('settings').doc('mainGoal').onSnapshot(d => {
+          if (d.exists) setMain({ ...DEFAULT_MAIN_GOAL, ...d.data() });
+        }, err => console.error(err));
+        return unsub;
+      }, []);
+
+      const save = useCallback(async (g) => {
+        await db.collection('settings').doc('mainGoal').set(g);
+      }, []);
+
+      return { main, save };
+    }
+
+    function useChecklist() {
+      const [data, setData] = useState({});
+      useEffect(() => {
+        const unsub = db.collection('checklist').onSnapshot(snap => {
+          const d = {};
+          snap.docs.forEach(doc => { d[doc.id] = doc.data(); });
+          setData(d);
+        }, err => console.error(err));
+        return unsub;
+      }, []);
+      const toggle = (month, name) => {
+        const cur = (data[month] || {})[name] || false;
+        db.collection('checklist').doc(month).set({ [name]: !cur }, { merge: true });
+      };
+      return { data, toggle };
+    }
+
     // ─── SVG-иконки ───────────────────────────────────────────────
     const svgProps = { viewBox:'0 0 24 24', fill:'none', stroke:'currentColor', strokeWidth:'2', strokeLinecap:'round', strokeLinejoin:'round' };
 
@@ -349,6 +387,7 @@
       Plus: () => <svg {...svgProps} className="w-6 h-6"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>,
       Chart: () => <svg {...svgProps} className="w-5 h-5"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/><line x1="2" y1="20" x2="22" y2="20"/></svg>,
       Cal: () => <svg {...svgProps} className="w-5 h-5"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>,
+      CheckList: () => <svg {...svgProps} className="w-5 h-5"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>,
       X: () => <svg {...svgProps} className="w-5 h-5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>,
       Trash: () => <svg {...svgProps} className="w-4 h-4"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>,
       Up: () => <svg {...svgProps} className="w-4 h-4"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>,
@@ -466,18 +505,24 @@
             <div className="text-sm font-semibold text-gray-600 mb-2">
               {ruMonth(cm).charAt(0).toUpperCase() + ruMonth(cm).slice(1)}
             </div>
-            <div className="grid grid-cols-3 gap-2">
-              {[
-                { label: 'Доходы',    val: cmIncome,   bg: 'bg-green-50',  txt: 'text-green-700' },
-                { label: 'Расходы',   val: cmExpenses, bg: 'bg-red-50',    txt: 'text-red-700' },
-                { label: 'В копилку', val: cmSavings,  bg: 'bg-blue-50',   txt: 'text-blue-700' },
-              ].map(({ label, val, bg, txt }) => (
-                <div key={label} className={`${bg} rounded-xl p-3`}>
-                  <div className={`text-sm font-bold ${txt} leading-tight`}>{fmt(val)}</div>
-                  <div className="text-xs text-gray-500 mt-0.5">{label}</div>
+            {(() => {
+              const cmBalance = cmIncome - cmExpenses - cmSavings;
+              return (
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { label: 'Доходы',    val: cmIncome,   bg: 'bg-green-50',  txt: 'text-green-700' },
+                    { label: 'Расходы',   val: cmExpenses, bg: 'bg-red-50',    txt: 'text-red-700' },
+                    { label: 'В копилку', val: cmSavings,  bg: 'bg-blue-50',   txt: 'text-blue-700' },
+                    { label: 'Остаток',   val: cmBalance,  bg: cmBalance >= 0 ? 'bg-green-50' : 'bg-red-50', txt: cmBalance >= 0 ? 'text-green-700' : 'text-red-700' },
+                  ].map(({ label, val, bg, txt }) => (
+                    <div key={label} className={`${bg} rounded-xl p-3`}>
+                      <div className={`text-sm font-bold ${txt} leading-tight`}>{fmt(val)}</div>
+                      <div className="text-xs text-gray-500 mt-0.5">{label}</div>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
+              );
+            })()}
           </div>
 
           {/* План накоплений */}
@@ -648,16 +693,22 @@
               <div className="text-sm">Операций нет</div>
             </div>
           ) : (
-            Object.entries(grouped).sort(([a], [b]) => b.localeCompare(a)).map(([date, items]) => (
-              <div key={date} className="mx-4 mt-4">
-                <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
-                  {new Date(date + 'T12:00:00').toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' })}
+            Object.entries(grouped).sort(([a], [b]) => b.localeCompare(a)).map(([date, items]) => {
+              const dayNet = items.reduce((s, tx) => s + (tx.kind === 'income' ? tx.amount : -tx.amount), 0);
+              return (
+                <div key={date} className="mx-4 mt-4">
+                  <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5 flex justify-between items-center">
+                    <span>{new Date(date + 'T12:00:00').toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' })}</span>
+                    <span className={dayNet >= 0 ? 'text-green-600' : 'text-red-500'}>
+                      {dayNet >= 0 ? '+' : ''}{dayNet.toLocaleString('ru-RU')} ₽
+                    </span>
+                  </div>
+                  <Card className="divide-y divide-gray-50">
+                    {items.map(tx => <TxRow key={tx.id} tx={tx} onDelete={onDelete} onEdit={onEdit}/>)}
+                  </Card>
                 </div>
-                <Card className="divide-y divide-gray-50">
-                  {items.map(tx => <TxRow key={tx.id} tx={tx} onDelete={onDelete} onEdit={onEdit}/>)}
-                </Card>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
       );
@@ -1100,7 +1151,113 @@
       );
     }
 
-    // ─── Календарь ────────────────────────────────────────────────
+    // ─── Платежи (чек-лист) ───────────────────────────────────────
+    function ChecklistView({ checkData, onToggle }) {
+      const [month, setMonth] = useState(todayStr().slice(0, 7));
+
+      const shiftMonth = (ym, delta) => {
+        const [y, m] = ym.split('-').map(Number);
+        const d = new Date(y, m - 1 + delta, 1);
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      };
+
+      const checked = checkData[month] || {};
+      const total   = SCHEDULED_BILLS.reduce((s, b) => s + b.amount, 0);
+      const paidAmt = SCHEDULED_BILLS.filter(b => checked[b.name]).reduce((s, b) => s + b.amount, 0);
+      const paidCnt = SCHEDULED_BILLS.filter(b => checked[b.name]).length;
+      const pct     = total > 0 ? (paidAmt / total) * 100 : 0;
+      const allDone = paidCnt === SCHEDULED_BILLS.length;
+
+      const monthLabel = (() => {
+        const s = new Date(month + '-15').toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' });
+        return s.charAt(0).toUpperCase() + s.slice(1);
+      })();
+
+      return (
+        <div className="pb-4">
+          <div className="px-4 pt-4 pb-1 flex items-start justify-between gap-3">
+            <div>
+              <div className="text-sm font-semibold text-gray-600">Обязательные платежи</div>
+              <div className="text-xs text-gray-400 mt-0.5">Отмечай что оплачено</div>
+            </div>
+          </div>
+
+          {/* Навигация по месяцам */}
+          <div className="flex items-center justify-between px-4 py-2 mb-1">
+            <button onClick={() => setMonth(m => shiftMonth(m, -1))}
+              className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-100 active:bg-gray-200 transition-colors cursor-pointer text-gray-500">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5"><polyline points="15 18 9 12 15 6"/></svg>
+            </button>
+            <span className="text-base font-bold text-gray-900">{monthLabel}</span>
+            <button onClick={() => setMonth(m => shiftMonth(m, 1))}
+              className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-100 active:bg-gray-200 transition-colors cursor-pointer text-gray-500">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5"><polyline points="9 18 15 12 9 6"/></svg>
+            </button>
+          </div>
+
+          {/* Прогресс */}
+          <div className="mx-4 mb-3">
+            <Card>
+              <div className="px-4 py-3">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-gray-600">{paidCnt} из {SCHEDULED_BILLS.length} оплачено</span>
+                  <span className="text-sm font-bold text-green-600">{paidAmt.toLocaleString('ru-RU')} ₽</span>
+                </div>
+                <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                  <div className="h-full bg-green-500 rounded-full transition-[width] duration-500" style={{ width: `${pct}%` }}/>
+                </div>
+                <div className="text-xs text-gray-400 mt-1.5">из {total.toLocaleString('ru-RU')} ₽</div>
+              </div>
+            </Card>
+          </div>
+
+          {/* Список */}
+          <div className="mx-4">
+            <Card className="divide-y divide-gray-50">
+              {SCHEDULED_BILLS.map(bill => {
+                const isPaid = !!checked[bill.name];
+                return (
+                  <button key={bill.name} onClick={() => onToggle(month, bill.name)}
+                    className="w-full flex items-center gap-3 px-4 py-3.5 active:scale-[0.98] transition-transform cursor-pointer text-left"
+                    style={{ touchAction: 'manipulation' }}>
+                    <div className={`w-6 h-6 rounded-full border-2 flex-shrink-0 flex items-center justify-center transition-colors
+                      ${isPaid ? 'bg-green-500 border-green-500' : 'border-gray-300'}`}>
+                      {isPaid && (
+                        <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
+                          <polyline points="20 6 9 17 4 12"/>
+                        </svg>
+                      )}
+                    </div>
+                    <span className={`flex-1 text-sm font-medium transition-colors ${isPaid ? 'line-through text-gray-400' : 'text-gray-800'}`}>
+                      {bill.name}
+                    </span>
+                    <span className={`text-sm font-semibold transition-colors ${isPaid ? 'text-gray-300' : 'text-gray-700'}`}>
+                      {bill.amount.toLocaleString('ru-RU')} ₽
+                    </span>
+                  </button>
+                );
+              })}
+            </Card>
+          </div>
+
+          {/* Итог */}
+          <div className="mx-4 mt-3">
+            {allDone ? (
+              <div className="px-4 py-3 bg-green-50 rounded-2xl flex items-center justify-between">
+                <span className="text-sm text-green-700 font-medium">Все платежи оплачены</span>
+                <span className="text-base font-bold text-green-600">{total.toLocaleString('ru-RU')} ₽</span>
+              </div>
+            ) : (
+              <div className="px-4 py-3 bg-red-50 rounded-2xl flex items-center justify-between">
+                <span className="text-sm text-red-600 font-medium">Осталось оплатить</span>
+                <span className="text-base font-bold text-red-600">{(total - paidAmt).toLocaleString('ru-RU')} ₽</span>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+
     function AddPlannedModal({ onAdd, onClose }) {
       const [name, setName]     = useState('');
       const [amount, setAmount] = useState('');
@@ -1467,9 +1624,161 @@
       );
     }
 
-    function GoalsView({ goals, txs, onAddGoal, onRemoveGoal, onAddTx, onBack }) {
+    function EditMainGoalModal({ mainGoal, onSave, onClose }) {
+      const [target, setTarget]     = useState(String(mainGoal.target));
+      const [deadline, setDeadline] = useState(mainGoal.deadline);
+
+      function submit(e) {
+        e.preventDefault();
+        if (!target || +target <= 0 || !deadline) return;
+        onSave({ target: +target, deadline });
+        onClose();
+      }
+
+      return (
+        <div className="sheet-overlay fixed inset-0 bg-black/40 z-50 flex items-end" onClick={e => e.target === e.currentTarget && onClose()}>
+          <div className="sheet-panel bg-white w-full rounded-t-3xl">
+            <div className="px-5 pt-5 pb-3 flex items-center justify-between border-b border-gray-100">
+              <h2 className="text-base font-bold text-gray-900">Основная цель</h2>
+              <button onClick={onClose} aria-label="Закрыть" className="w-11 h-11 flex items-center justify-center rounded-full hover:bg-gray-100 cursor-pointer text-gray-500 transition-colors">
+                <Icons.X/>
+              </button>
+            </div>
+            <form onSubmit={submit} className="px-5 pt-4 pb-8 space-y-4">
+              <div>
+                <label className="text-xs font-medium text-gray-500 mb-1.5 block">Сколько накопить</label>
+                <div className="relative">
+                  <input type="number" value={target} onChange={e => setTarget(e.target.value)}
+                    inputMode="numeric" min="1" required
+                    className="w-full text-xl font-bold text-gray-900 border-2 border-gray-200 rounded-xl px-4 py-3 pr-10 focus:outline-none focus:border-blue-500 transition-colors"/>
+                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-lg font-medium text-gray-400">₽</span>
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-500 mb-1.5 block">Срок</label>
+                <input type="date" value={deadline} onChange={e => setDeadline(e.target.value)} required
+                  className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 text-gray-900 focus:outline-none focus:border-blue-500 transition-colors text-base"/>
+              </div>
+              <button type="submit"
+                className="pressable w-full bg-blue-600 text-white py-4 rounded-xl text-base font-semibold hover:bg-blue-700 active:bg-blue-800 cursor-pointer">
+                Сохранить
+              </button>
+            </form>
+          </div>
+        </div>
+      );
+    }
+
+    function GoalPlanModal({ goal, txs, isMain, onClose }) {
+      const cm = currentMonth();
+
+      // Список месяцев от текущего до месяца дедлайна
+      const months = [];
+      let m = cm;
+      const endM = goal.deadline.slice(0, 7);
+      while (m <= endM && months.length < 36) {
+        months.push(m);
+        const d = new Date(m + '-01T12:00:00');
+        d.setMonth(d.getMonth() + 1);
+        m = d.toISOString().slice(0, 7);
+      }
+
+      const goalTxs = txs.filter(t => t.kind === 'savings' && (isMain ? !t.goalId : t.goalId === goal.id));
+      const saved = goalTxs.reduce((s, t) => s + t.amount, 0);
+      const remaining = Math.max(0, goal.target - saved);
+
+      // Дефолтный план семьи — рукописный; иначе равными долями
+      const isDefaultPlan = isMain && goal.target === DEFAULT_MAIN_GOAL.target && goal.deadline === DEFAULT_MAIN_GOAL.deadline;
+      const evenMonthly = months.length > 0 ? Math.ceil(remaining / months.length) : 0;
+      const planFor = (mm) => isDefaultPlan ? (MONTHLY_SAVINGS_PLAN[mm] || 160000) : evenMonthly;
+      const factFor = (mm) => goalTxs.filter(t => t.date.startsWith(mm)).reduce((s, t) => s + t.amount, 0);
+
+      const savedBefore = goalTxs.filter(t => t.date.slice(0, 7) < cm).reduce((s, t) => s + t.amount, 0);
+      let cumPlan = isDefaultPlan ? 0 : saved;
+      let cumFact = savedBefore;
+
+      return (
+        <div className="sheet-overlay fixed inset-0 bg-black/40 z-50 flex items-end" onClick={e => e.target === e.currentTarget && onClose()}>
+          <div className="sheet-panel bg-white w-full rounded-t-3xl max-h-[88vh] overflow-y-auto">
+            <div className="sticky top-0 bg-white px-5 pt-5 pb-3 flex items-center justify-between border-b border-gray-100 z-10">
+              <div className="min-w-0">
+                <h2 className="text-base font-bold text-gray-900 truncate">План — {goal.name}</h2>
+                <div className="text-xs text-gray-400 mt-0.5">{fmt(goal.target)} ₽ до {ruDate(goal.deadline)}</div>
+              </div>
+              <button onClick={onClose} aria-label="Закрыть" className="w-11 h-11 flex items-center justify-center rounded-full hover:bg-gray-100 cursor-pointer text-gray-500 transition-colors flex-shrink-0">
+                <Icons.X/>
+              </button>
+            </div>
+
+            <div className="px-5 pt-4 pb-8">
+              {/* Сводка */}
+              <div className="grid grid-cols-2 gap-2 mb-4">
+                <div className="bg-blue-50 rounded-xl p-3">
+                  <div className="text-base font-bold text-blue-700">{fmt(remaining)} ₽</div>
+                  <div className="text-xs text-blue-500 mt-0.5">осталось накопить</div>
+                </div>
+                <div className="bg-gray-50 rounded-xl p-3">
+                  <div className="text-base font-bold text-gray-700">~{fmt(months.length > 0 ? Math.ceil(remaining / months.length) : 0)} ₽</div>
+                  <div className="text-xs text-gray-400 mt-0.5">в месяц ({months.length} мес.)</div>
+                </div>
+              </div>
+
+              {months.length === 0 ? (
+                <div className="text-center py-6 text-sm text-gray-300">Срок цели уже прошёл</div>
+              ) : (
+                <div className="border border-gray-100 rounded-2xl overflow-hidden">
+                  <div className="grid grid-cols-4 px-4 py-2 bg-gray-50 text-xs font-semibold text-gray-400 uppercase tracking-wide">
+                    <div>Месяц</div>
+                    <div className="text-right">План</div>
+                    <div className="text-right">Факт</div>
+                    <div className="text-right">Итого план</div>
+                  </div>
+                  {months.map((mm, i) => {
+                    const plan = planFor(mm);
+                    const fact = factFor(mm);
+                    cumPlan = isDefaultPlan ? (CUMULATIVE_PLAN[mm] || cumPlan + plan) : Math.min(cumPlan + plan, goal.target);
+                    cumFact += fact;
+                    const isCurrent = mm === cm;
+                    const isPast = mm < cm;
+                    const ok = fact >= plan;
+                    return (
+                      <div key={mm} className={`px-4 py-2.5 border-t border-gray-50 ${isCurrent ? 'bg-blue-50/60' : ''}`}>
+                        <div className="grid grid-cols-4 items-baseline">
+                          <div className={`text-sm capitalize ${isCurrent ? 'font-semibold text-blue-700' : 'text-gray-700'}`}>
+                            {ruMonth(mm)}
+                            {mm.slice(0, 4) !== cm.slice(0, 4) && <span className="text-xs text-gray-400"> '{mm.slice(2, 4)}</span>}
+                          </div>
+                          <div className="text-sm text-right text-gray-400">{fmt(plan)}</div>
+                          <div className={`text-sm text-right font-semibold ${fact === 0 ? 'text-gray-300' : ok ? 'text-green-600' : isPast || isCurrent ? 'text-amber-600' : 'text-gray-600'}`}>
+                            {fmt(fact)}
+                          </div>
+                          <div className="text-sm text-right text-gray-500">{fmt(Math.min(cumPlan, goal.target))}</div>
+                        </div>
+                        <div className="h-1 bg-gray-100 rounded-full overflow-hidden mt-1.5">
+                          <div className="h-full rounded-full transition-[width] duration-500"
+                            style={{ width: `${Math.min(plan > 0 ? (fact / plan) * 100 : 0, 100)}%`, backgroundColor: ok ? '#4B7026' : '#93B660' }}/>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              <div className="text-xs text-gray-400 mt-3">
+                Накоплено: <span className="font-semibold text-gray-600">{fmt(saved)} ₽</span> из {fmt(goal.target)} ₽
+                {savedBefore > 0 && <span> (до этого месяца — {fmt(savedBefore)} ₽)</span>}
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    function GoalsView({ goals, txs, mainGoal, onSaveMainGoal, onAddGoal, onRemoveGoal, onAddTx, onBack }) {
       const [showNew, setShowNew] = useState(false);
       const [funding, setFunding] = useState(null);
+      const [editMain, setEditMain] = useState(false);
+      const [planGoal, setPlanGoal] = useState(null);
 
       const savedFor = (goalId) => txs
         .filter(t => t.kind === 'savings' && (goalId ? t.goalId === goalId : !t.goalId))
@@ -1478,9 +1787,8 @@
       const daysTo = (d) => Math.max(0, Math.ceil((new Date(d + 'T23:59:59') - new Date()) / 86400000));
 
       const mainSaved = savedFor(null);
-      const mainPct = Math.min((mainSaved / GOAL) * 100, 100);
 
-      const GoalCard = ({ name, target, deadline, saved, onFund, onRemove, isMain }) => {
+      const GoalCard = ({ name, target, deadline, saved, onFund, onRemove, onEdit, onPlan, isMain }) => {
         const pct = Math.min((saved / target) * 100, 100);
         const done = saved >= target;
         return (
@@ -1492,12 +1800,23 @@
                   до {ruDate(deadline)} · осталось {daysTo(deadline)} дн.
                 </div>
               </div>
-              {onRemove && (
-                <button onClick={onRemove} aria-label={`Удалить цель ${name}`}
-                  className="w-10 h-10 -mt-1 -mr-1 flex items-center justify-center text-gray-300 hover:text-red-400 cursor-pointer transition-colors rounded-lg hover:bg-red-50 flex-shrink-0">
-                  <Icons.Trash/>
-                </button>
-              )}
+              <div className="flex flex-shrink-0 -mt-1 -mr-1">
+                {onEdit && (
+                  <button onClick={onEdit} aria-label={`Изменить цель ${name}`}
+                    className="w-10 h-10 flex items-center justify-center text-gray-300 hover:text-blue-500 cursor-pointer transition-colors rounded-lg hover:bg-blue-50">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+                      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                    </svg>
+                  </button>
+                )}
+                {onRemove && (
+                  <button onClick={onRemove} aria-label={`Удалить цель ${name}`}
+                    className="w-10 h-10 flex items-center justify-center text-gray-300 hover:text-red-400 cursor-pointer transition-colors rounded-lg hover:bg-red-50">
+                    <Icons.Trash/>
+                  </button>
+                )}
+              </div>
             </div>
 
             <div className="mt-3 h-2.5 bg-gray-100 rounded-full overflow-hidden">
@@ -1511,11 +1830,21 @@
 
             {done ? (
               <div className="mt-3 text-center text-sm font-semibold text-green-600 bg-green-50 rounded-xl py-2.5">Цель достигнута!</div>
-            ) : onFund && (
-              <button onClick={onFund}
-                className="pressable mt-3 w-full bg-blue-50 text-blue-700 py-2.5 rounded-xl text-sm font-semibold hover:bg-blue-100 cursor-pointer">
-                Пополнить
-              </button>
+            ) : (
+              <div className="mt-3 flex gap-2">
+                {onPlan && (
+                  <button onClick={onPlan}
+                    className="pressable flex-1 bg-gray-50 text-gray-600 py-2.5 rounded-xl text-sm font-semibold hover:bg-gray-100 cursor-pointer">
+                    План накоплений
+                  </button>
+                )}
+                {onFund && (
+                  <button onClick={onFund}
+                    className="pressable flex-1 bg-blue-50 text-blue-700 py-2.5 rounded-xl text-sm font-semibold hover:bg-blue-100 cursor-pointer">
+                    Пополнить
+                  </button>
+                )}
+              </div>
             )}
           </Card>
         );
@@ -1578,7 +1907,7 @@
     // ─── Нижняя навигация ─────────────────────────────────────────
     function BottomNav({ tab, setTab, onAdd }) {
       const LEFT  = [{ id: 'dashboard', label: 'Главная', Icon: Icons.Home }, { id: 'txs', label: 'Операции', Icon: Icons.List }];
-      const RIGHT = [{ id: 'plan', label: 'План', Icon: Icons.Chart }, { id: 'calendar', label: 'Календарь', Icon: Icons.Cal }];
+      const RIGHT = [{ id: 'plan', label: 'План', Icon: Icons.Chart }, { id: 'checklist', label: 'Платежи', Icon: Icons.CheckList }];
       const Item = ({ id, label, Icon }) => (
         <button onClick={() => setTab(id)}
           className={`flex-1 py-3 flex flex-col items-center gap-0.5 cursor-pointer transition-colors
@@ -1611,6 +1940,7 @@
       const [editTx, setEditTx] = useState(null);
       const { txs, add, update, remove, renameCategory, loading } = useTransactions();
       const { planned, add: addPlanned, remove: removePlanned } = usePlanned();
+      const { data: checkData, toggle: toggleCheck } = useChecklist();
       const { goals, add: addGoal, remove: removeGoal } = useGoals();
 
       const closeModal = () => { setShowAdd(false); setEditTx(null); };
@@ -1648,7 +1978,7 @@
             {tab === 'goals'     && <GoalsView goals={goals} txs={txs} onAddGoal={addGoal} onRemoveGoal={removeGoal} onAddTx={add} onBack={() => setTab('dashboard')}/>}
             {tab === 'txs'       && <Transactions txs={txs} onDelete={remove} onEdit={(tx) => { setEditTx(tx); setShowAdd(true); }} onRenameCategory={renameCategory}/>}
             {tab === 'plan'      && <Plan txs={txs}/>}
-            {tab === 'calendar'  && <CalendarView txs={txs} planned={planned} onAddPlanned={addPlanned} onRemovePlanned={removePlanned}/>}
+            {tab === 'checklist' && <ChecklistView checkData={checkData} onToggle={toggleCheck}/>}
           </div>
 
           <BottomNav tab={tab} setTab={setTab} onAdd={() => setShowAdd(true)}/>
