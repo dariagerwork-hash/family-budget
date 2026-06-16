@@ -1293,7 +1293,7 @@
                         <span className={`text-sm font-medium transition-colors ${isPaid ? 'line-through text-gray-400' : 'text-gray-800'}`}>
                           {bd.name}
                         </span>
-                        <span className="text-xs text-gray-400 ml-1.5">{new Date(2026, bd.month - 1, bd.day).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })}</span>
+                        <span className="text-xs text-gray-400 ml-1.5">{new Date(2026, bd.month - 1, 1).toLocaleDateString('ru-RU', { month: 'long' })}</span>
                       </div>
                       <span className={`text-sm font-semibold transition-colors ${isPaid ? 'text-gray-300' : 'text-pink-500'}`}>
                         {bd.amount.toLocaleString('ru-RU')} ₽
