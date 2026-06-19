@@ -206,7 +206,18 @@
       'Ипотека', 'Кредит (машина)', 'Садик', 'Кружки', 'Коммуналка',
       'Бензин', 'Супермаркеты', 'Обед', 'Кафе', 'Кофе', 'Здоровье',
       'Обслуживание машины', 'Детские товары', 'Коты',
-      'Развлечения', 'Одежда', 'Подарки', 'Прочее',
+      'Развлечения', 'Одежда', 'Подарки',
+      'Такси', 'Проезд', 'Фастфуд', 'Подписки', 'Мобильная связь',
+      'Прочее',
+    ];
+
+    // Правила авто-перекатегоризации: ищем по note.toLowerCase()
+    const RECATEGORIZE_RULES = [
+      { category: 'Такси',           keywords: ['такси', 'uber', 'яндекс такси'] },
+      { category: 'Проезд',          keywords: ['проезд', 'автобус', 'метро', 'трамвай', 'маршрутка', 'электричка'] },
+      { category: 'Подписки',        keywords: ['подписк', 'перплексити', 'perplex', 'netflix', 'spotify', 'яндекс плюс', 'apple music'] },
+      { category: 'Фастфуд',         keywords: ['фастфуд', 'макдак', 'kfc', 'бургер', 'пицца', 'суши', 'burger'] },
+      { category: 'Мобильная связь', keywords: ['связь', 'мтс', 'билайн', 'теле2', 'мегафон'] },
     ];
 
     const INCOME_CATEGORIES = ['Зарплата', 'Аванс', 'Прочее'];
@@ -230,6 +241,11 @@
       'Развлечения':          '#FF6B81',
       'Одежда':               '#4DA8E2',
       'Подарки':              '#F06292',
+      'Такси':                '#FFCA28',
+      'Проезд':               '#26C6DA',
+      'Фастфуд':              '#FF7043',
+      'Подписки':             '#AB47BC',
+      'Мобильная связь':      '#42A5F5',
       'Прочее':               '#8FA3B5',
       'Зарплата':             '#7FA650',
       'Аванс':                '#9CBE6E',
@@ -291,6 +307,32 @@
         snap.docs.forEach(d => batch.update(d.ref, { category: newCat }));
         await batch.commit();
       }, []);
+
+      // Авто-миграция: Прочее → новые категории по ключевым словам в note
+      const recategorize = useCallback(async (transactions) => {
+        const toUpdate = [];
+        transactions
+          .filter(t => t.kind === 'expense' && t.category === 'Прочее' && t.note)
+          .forEach(t => {
+            const note = t.note.toLowerCase();
+            for (const { category, keywords } of RECATEGORIZE_RULES) {
+              if (keywords.some(kw => note.includes(kw))) {
+                toUpdate.push({ id: t.id, category });
+                break;
+              }
+            }
+          });
+        if (toUpdate.length === 0) return;
+        const batch = db.batch();
+        toUpdate.forEach(({ id, category }) =>
+          batch.update(db.collection('transactions').doc(id), { category })
+        );
+        await batch.commit();
+      }, []);
+
+      useEffect(() => {
+        if (!loading && txs.length > 0) recategorize(txs);
+      }, [loading]);
 
       return { txs, add, update, remove, renameCategory, loading };
     }
