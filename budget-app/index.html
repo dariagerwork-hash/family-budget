@@ -496,7 +496,7 @@
       const cm = currentMonth();
 
       const totalSavings = useMemo(() =>
-        txs.filter(t => t.kind === 'savings' && !t.goalId).reduce((s, t) => s + t.amount, 0), [txs]);
+        txs.filter(t => t.kind === 'savings').reduce((s, t) => s + t.amount, 0), [txs]);
 
       const pct = (totalSavings / GOAL) * 100;
       const days = daysUntilGoal();
@@ -504,7 +504,7 @@
       const cmTxs = txs.filter(t => t.date.startsWith(cm));
       const cmIncome   = cmTxs.filter(t => t.kind === 'income').reduce((s, t) => s + t.amount, 0);
       const cmExpenses = cmTxs.filter(t => t.kind === 'expense').reduce((s, t) => s + t.amount, 0);
-      const cmSavings  = cmTxs.filter(t => t.kind === 'savings' && !t.goalId).reduce((s, t) => s + t.amount, 0);
+      const cmSavings  = cmTxs.filter(t => t.kind === 'savings').reduce((s, t) => s + t.amount, 0);
 
       const planSavings = MONTHLY_SAVINGS_PLAN[cm] || 160000;
       const onTrack = cmSavings >= planSavings * 0.5 || cmSavings === 0;
@@ -589,7 +589,7 @@
             <Card>
               {Object.entries(CUMULATIVE_PLAN).map(([key, target], i, arr) => {
                 const cumActual = txs
-                  .filter(t => t.kind === 'savings' && !t.goalId && t.date.slice(0, 7) <= key)
+                  .filter(t => t.kind === 'savings' && t.date.slice(0, 7) <= key)
                   .reduce((s, t) => s + t.amount, 0);
                 const isCurrent = key === cm;
                 const isPast = key < cm;
@@ -926,7 +926,7 @@
       const actual = {
         income:  cmTxs.filter(t => t.kind === 'income').reduce((s, t) => s + t.amount, 0),
         expense: cmTxs.filter(t => t.kind === 'expense').reduce((s, t) => s + t.amount, 0),
-        savings: cmTxs.filter(t => t.kind === 'savings' && !t.goalId).reduce((s, t) => s + t.amount, 0),
+        savings: cmTxs.filter(t => t.kind === 'savings').reduce((s, t) => s + t.amount, 0),
       };
 
       const planSavings = MONTHLY_SAVINGS_PLAN[sel] || 160000;
@@ -941,7 +941,7 @@
 
       const cumPlan   = CUMULATIVE_PLAN[sel] || 0;
       const cumActual = txs
-        .filter(t => t.kind === 'savings' && !t.goalId && t.date.slice(0, 7) <= sel)
+        .filter(t => t.kind === 'savings' && t.date.slice(0, 7) <= sel)
         .reduce((s, t) => s + t.amount, 0);
       const ahead = cumActual - cumPlan;
 
@@ -2196,7 +2196,11 @@
     // ─── Нижняя навигация ─────────────────────────────────────────
     function BottomNav({ tab, setTab, onAdd }) {
       const LEFT  = [{ id: 'dashboard', label: 'Главная', Icon: Icons.Home }, { id: 'txs', label: 'Операции', Icon: Icons.List }];
-      const RIGHT = [{ id: 'plan', label: 'План', Icon: Icons.Chart }, { id: 'checklist', label: 'Платежи', Icon: Icons.CheckList }];
+      const RIGHT = [
+        { id: 'plan', label: 'План', Icon: Icons.Chart },
+        { id: 'checklist', label: 'Платежи', Icon: Icons.CheckList },
+        { id: 'calendar', label: 'Календарь', Icon: Icons.Cal },
+      ];
       const Item = ({ id, label, Icon }) => (
         <button onClick={() => setTab(id)}
           className={`flex-1 py-3 flex flex-col items-center gap-0.5 cursor-pointer transition-colors
@@ -2269,6 +2273,7 @@
             {tab === 'txs'       && <Transactions txs={txs} onDelete={remove} onEdit={(tx) => { setEditTx(tx); setShowAdd(true); }} onRenameCategory={renameCategory}/>}
             {tab === 'plan'      && <Plan txs={txs}/>}
             {tab === 'checklist' && <ChecklistView checkData={checkData} onToggle={toggleCheck} extraBills={extraBills} onAddExtraBill={addExtraBill} onRemoveExtraBill={removeExtraBill}/>}
+            {tab === 'calendar'  && <CalendarView txs={txs} planned={planned} onAddPlanned={addPlanned} onRemovePlanned={removePlanned}/>}
           </div>
 
           <BottomNav tab={tab} setTab={setTab} onAdd={() => setShowAdd(true)}/>
