@@ -578,7 +578,7 @@
                   {[
                     { label: 'Доходы',    val: cmIncome,   bg: 'bg-green-50',  txt: 'text-green-700' },
                     { label: 'Расходы',   val: cmExpenses, bg: 'bg-red-50',    txt: 'text-red-700' },
-                    { label: 'В копилку', val: cmSavings,  bg: 'bg-blue-50',   txt: 'text-blue-700' },
+                    { label: 'В копилке всего', val: totalSavings, bg: 'bg-blue-50', txt: 'text-blue-700' },
                     { label: 'Остаток общий', val: availableBalance, bg: availableBalance >= 0 ? 'bg-green-50' : 'bg-red-50', txt: availableBalance >= 0 ? 'text-green-700' : 'text-red-700' },
                   ].map(({ label, val, bg, txt }) => (
                     <div key={label} className={`${bg} rounded-xl p-3`}>
