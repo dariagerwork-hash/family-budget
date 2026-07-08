@@ -276,15 +276,18 @@
     function useTransactions() {
       const [txs, setTxs] = useState([]);
       const [loading, setLoading] = useState(true);
+      const [error, setError] = useState(null);
 
       useEffect(() => {
         const unsub = db.collection('transactions')
           .orderBy('date', 'desc')
           .onSnapshot(snap => {
             setTxs(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+            setError(null);
             setLoading(false);
           }, err => {
             console.error(err);
+            setError(err);
             setLoading(false);
           });
         return unsub;
@@ -335,7 +338,7 @@
         if (!loading && txs.length > 0) recategorize(txs);
       }, [loading]);
 
-      return { txs, add, update, remove, renameCategory, loading };
+      return { txs, add, update, remove, renameCategory, loading, error };
     }
 
     // ─── Плановые траты (пользовательские, в календарь) ──────────
@@ -2231,7 +2234,7 @@
       const [tab, setTab]       = useState('dashboard');
       const [showAdd, setShowAdd] = useState(false);
       const [editTx, setEditTx] = useState(null);
-      const { txs, add, update, remove, renameCategory, loading } = useTransactions();
+      const { txs, add, update, remove, renameCategory, loading, error: txError } = useTransactions();
       const { planned, add: addPlanned, remove: removePlanned } = usePlanned();
       const { data: checkData, toggle: toggleCheck } = useChecklist();
       const { goals, add: addGoal, remove: removeGoal } = useGoals();
@@ -2263,6 +2266,18 @@
             <div className="fixed inset-0 bg-white z-50 flex flex-col items-center justify-center gap-3">
               <div className="w-10 h-10 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" style={{ animationDuration: '0.6s' }}/>
               <div className="text-sm text-gray-400">Загружаем данные...</div>
+            </div>
+          )}
+
+          {txError && (
+            <div className="mx-4 mt-4 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">
+              <div className="font-semibold">Не удалось загрузить операции из Firebase</div>
+              <div className="mt-1 text-xs text-red-600">
+                Firestore вернул отказ доступа. Данные не обязательно удалены: чаще всего нужно обновить Firestore Rules или включить авторизацию.
+              </div>
+              <div className="mt-2 rounded-xl bg-white/70 px-3 py-2 text-xs font-mono text-red-500 break-words">
+                {txError.code || 'firebase/error'}: {txError.message || 'permission denied'}
+              </div>
             </div>
           )}
 
