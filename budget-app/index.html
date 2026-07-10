@@ -609,6 +609,9 @@
             <div className="text-sm font-semibold text-gray-600 mb-2">Накопления по месяцам</div>
             <Card>
               {Object.entries(CUMULATIVE_PLAN).map(([key, target], i, arr) => {
+                const monthActual = txs
+                  .filter(t => t.kind === 'savings' && t.date.startsWith(key))
+                  .reduce((s, t) => s + t.amount, 0);
                 const cumActual = txs
                   .filter(t => t.kind === 'savings' && t.date.slice(0, 7) <= key)
                   .reduce((s, t) => s + t.amount, 0);
@@ -625,11 +628,11 @@
                         {isCurrent && <span className="ml-1.5 text-xs font-normal text-blue-500">текущий</span>}
                       </div>
                       <div className="text-right">
-                        <span className="text-sm font-semibold text-gray-900">{fmt(target)} ₽</span>
+                        <div className="text-sm font-semibold text-gray-900">план всего {fmt(target)} ₽</div>
                         {(isPast || isCurrent) && (
-                          <span className={`ml-2 text-xs ${done ? 'text-green-600' : 'text-gray-400'}`}>
-                            факт {fmt(cumActual)}
-                          </span>
+                          <div className={`text-xs ${done ? 'text-green-600' : 'text-gray-400'}`}>
+                            за месяц {fmt(monthActual)} · всего {fmt(cumActual)}
+                          </div>
                         )}
                       </div>
                     </div>
